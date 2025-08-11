@@ -1,0 +1,14 @@
+# Root ignores
+.DS_Store
+Thumbs.db
+
+# Node
+backend/node_modules/
+backend/npm-debug.log*
+backend/yarn-debug.log*
+backend/yarn-error.log*
+
+# Env and DB
+backend/.env
+backend/data/*.db
+backend/data/*.sqlite
