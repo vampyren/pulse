@@ -12,6 +12,9 @@ import "./db/index.js";
 import { router as groupsRouter } from "./routes/groups.js";
 app.use("/api/v2/groups", groupsRouter);
 
+import { router as authRouter } from "./routes/auth.js";
+app.use("/api/v2/auth", authRouter);
+
 const PORT = Number(process.env.PORT || config.PORT || 4000);
 app.listen(PORT, () => {
   console.log(`[Pulse] API v0.1.0 listening on :${PORT}`);
