@@ -1,7 +1,7 @@
 {
   "name": "pulse-backend",
   "version": "0.1.0",
-  "description": "Pulse Backend \u2014 fresh modular Express + better-sqlite3",
+  "description": "Pulse Backend — fresh modular Express + better-sqlite3",
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development node src/server.js",
@@ -10,6 +10,7 @@
     "db:reset": "rm -f data/pulse.db && node src/db/seed.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "better-sqlite3": "^9.4.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
