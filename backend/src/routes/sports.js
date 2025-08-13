@@ -1,29 +1,27 @@
-/* 
- * Pulse Backend — routes/sports.js
- * File version: 0.1.0
- * Date: 2025-08-11
- * Purpose: Sports listing and admin management.
+/**
+ * Pulse API — routes/sports.js
+ * v0.1.2 (ESM)
+ * GET /api/v2/sports -> { ok:true, data:[{id,name,icon}], meta:null }
  */
-import express from "express";
-import { all, run } from "../db/index.js";
-import { ok, fail } from "../utils/respond.js";
-import { customAlphabet } from "nanoid";
-const nanoid = customAlphabet("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz", 12);
+import { Router } from "express";
+import Database from "better-sqlite3";
 
-export const router = express.Router();
+const DB_PATH =
+  process.env.PULSE_DB_PATH || `${process.env.HOME}/App/pulse/data/pulse.db`;
 
-router.get("/", (req,res)=> ok(res, all("SELECT id,name,icon FROM sports ORDER BY name")));
+const router = Router();
 
-router.post("/", (req,res)=> {
-  const { name, icon } = req.body || {};
-  if (!name) return fail(res, 400, "name is required");
+router.get("/sports", (_req, res) => {
   try {
-    run("INSERT INTO sports (id,name,icon) VALUES (?,?,?)", [nanoid(), name, icon || ""]);
-    return ok(res, true);
-  } catch (e) { return fail(res, 409, "sport exists?"); }
+    const db = new Database(DB_PATH, { fileMustExist: true });
+    const rows = db
+      .prepare("SELECT id,name,icon FROM sports ORDER BY name")
+      .all();
+    db.close();
+    res.json({ ok: true, data: rows, meta: null });
+  } catch {
+    res.status(500).json({ ok: false, error: "db error" });
+  }
 });
 
-router.delete("/:id", (req,res)=> {
-  run("DELETE FROM sports WHERE id=?", [req.params.id]);
-  return ok(res, true);
-});
+export default router;

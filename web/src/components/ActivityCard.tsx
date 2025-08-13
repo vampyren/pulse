@@ -1,40 +1,47 @@
-
 /**
  * Pulse Web — components/ActivityCard.tsx
- * File version: 0.1.0
- * Purpose: Card for group/activity list.
+ * Version: v0.1.1
+ * Purpose: Reusable activity/group card used by Discover and StyleGuide.
  */
-type Props = {
+
+import React from "react";
+
+/** ActivityCardProps
+ * v0.1.1 — Data shown on the card.
+ */
+export type ActivityCardProps = {
   title: string;
-  sport?: string;
-  city?: string;
-  dateTime?: string;
-  privacy?: "PUBLIC" | "FRIENDS" | "INVITE";
-  memberCount?: number;
-  maxMembers?: number;
+  meta: string;           // e.g., "Malmö • Tomorrow 18:00"
+  privacy?: "Public" | "Private";
+  actionLabel?: string;   // e.g., "Join", "View"
+  onAction?: () => void;
 };
 
-export function ActivityCard(p: Props) {
-  const badge =
-    p.privacy === "FRIENDS" ? "badge-blue" :
-    p.privacy === "INVITE" ? "badge-purple" : "badge-green";
+export default function ActivityCard({
+  title,
+  meta,
+  privacy = "Public",
+  actionLabel = "View",
+  onAction,
+}: ActivityCardProps) {
   return (
-    <div className="card hover:shadow-md transition will-change-transform">
-      <div className="card-body space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="font-semibold">{p.title}</div>
-          <span className={`badge ${badge}`}>{p.privacy || "PUBLIC"}</span>
+    <div className="rounded-xl border p-4 shadow-sm bg-white">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-medium">{title}</div>
+          <div className="text-sm text-gray-500">{meta}</div>
         </div>
-        <div className="text-sm text-gray-600">
-          {p.sport ? <span className="mr-2">{p.sport}</span> : null}
-          {p.city ? <span className="mr-2">· {p.city}</span> : null}
-          {p.dateTime ? <span className="mr-2">· {new Date(p.dateTime).toLocaleString()}</span> : null}
-        </div>
-        <div className="text-xs text-gray-500">
-          {typeof p.memberCount === "number" && typeof p.maxMembers === "number"
-            ? `${p.memberCount}/${p.maxMembers} joined`
-            : null}
-        </div>
+        <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs">
+          {privacy}
+        </span>
+      </div>
+      <div className="mt-3">
+        <button
+          onClick={onAction}
+          className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white"
+        >
+          {actionLabel}
+        </button>
       </div>
     </div>
   );

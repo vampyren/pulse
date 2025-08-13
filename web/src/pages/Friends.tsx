@@ -1,16 +1,19 @@
-
 /**
  * Pulse Web — pages/Friends.tsx
- * File version: 0.1.0
- * Purpose: Placeholder for friends list & search.
+ * Version: v0.1.1
+ * Purpose: Placeholder for friends list and requests.
+ */
+
+import React from "react";
+
+/** Friends
+ * v0.1.1 - Placeholder content.
  */
 export default function Friends() {
   return (
-    <div className="card">
-      <div className="card-body">
-        <div className="font-semibold mb-2">Friends</div>
-        <p className="text-sm text-gray-600">Friends list and requests will go here.</p>
-      </div>
+    <div className="mx-auto max-w-5xl">
+      <h1 className="mb-3 text-xl font-semibold">Friends</h1>
+      <div className="rounded-xl border bg-white p-4">Coming soon</div>
     </div>
   );
 }

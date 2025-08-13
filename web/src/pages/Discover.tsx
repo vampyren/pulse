@@ -1,69 +1,69 @@
-
 /**
  * Pulse Web — pages/Discover.tsx
- * File version: 0.1.0
- * Purpose: Main list view with basic filters and results.
+ * Version: v0.1.2
+ * Purpose: Public feed. When logged out, show teasers (masked details). When authed, show normal list.
  */
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { ActivityCard } from "@/components/ActivityCard";
+
+import React from "react";
+import { isAuthed as tokenPresent } from "@/lib/api";
 
 type Item = {
-  group: {
-    id: string;
-    title: string;
-    location_city?: string;
-    date_time?: string;
-    privacy?: "PUBLIC" | "FRIENDS" | "INVITE";
-    max_members?: number;
-    sport_id?: string;
-  };
-  member_count: number;
-  sport: { id: string; name: string; icon?: string };
-  creator: { id: string; name?: string };
-  can_join: boolean;
-  join_mode: string;
+  id: string;
+  title: string;
+  sport: string;
+  city: string;
+  when: string;
+  privacy: "PUBLIC" | "PRIVATE";
+  joined: string; // "3/8 joined"
 };
 
-export default function Discover() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const demo: Item[] = [
+  { id: "1", title: "Morning Run", sport: "Running", city: "Malmö", when: "Today 07:30", privacy: "PUBLIC", joined: "3/8 joined" },
+  { id: "2", title: "Basketball Pickup", sport: "Basketball", city: "Lund", when: "Thu 19:00", privacy: "PRIVATE", joined: "5/10 joined" },
+];
 
-  useEffect(() => {
-    setLoading(true);
-    api.get("/groups")
-      .then(r => setItems(r.data.data.items))
-      .catch(e => setError(e?.response?.data?.error || "Failed to load"))
-      .finally(() => setLoading(false));
-  }, []);
+export default function Discover() {
+  const authed = tokenPresent();
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2 overflow-x-auto">
-        <button className="btn btn-primary">Filters</button>
-        <button className="btn border">Created by me</button>
-        <button className="btn border">Joined by me</button>
-        <button className="btn border">Favorites</button>
-      </div>
+    <div className="mx-auto max-w-5xl">
+      <h1 className="mb-4 text-xl font-semibold">Discover</h1>
 
-      {loading && <div>Loading activities…</div>}
-      {error && <div className="text-red-600">{error}</div>}
+      {!authed && (
+        <div className="mb-3 rounded-xl border bg-white px-3 py-2 text-sm text-gray-700">
+          Sign in to see full details and join activities.
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {items.map(it => (
-          <ActivityCard
-            key={it.group.id}
-            title={it.group.title}
-            sport={it.sport?.name}
-            city={it.group.location_city}
-            dateTime={it.group.date_time}
-            privacy={it.group.privacy as any}
-            memberCount={it.member_count}
-            maxMembers={it.group.max_members}
-          />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {demo.map((a) => (
+          <Card key={a.id} item={a} authed={authed} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Card — masks city/title when logged out */
+function Card({ item, authed }: { item: Item; authed: boolean }) {
+  const city = authed ? item.city : "City hidden";
+  const title = authed ? item.title : `${item.sport} — preview`;
+  const meta = authed ? `${item.city} • ${item.when}` : `${item.when}`;
+  const button = authed ? (
+    <button className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white">View</button>
+  ) : (
+    <a href="/login" className="rounded-md border px-3 py-1.5 text-sm">Sign in</a>
+  );
+
+  return (
+    <div className="rounded-2xl border bg-white p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-base font-semibold">{title}</div>
+        <span className="rounded-full border px-2 py-0.5 text-[11px]">{item.privacy}</span>
+      </div>
+      <div className="mb-3 text-sm text-gray-600">{meta}</div>
+      <div className="text-xs text-gray-500 mb-3">{authed ? item.joined : "Join count hidden"}</div>
+      {button}
     </div>
   );
 }

@@ -1,55 +1,86 @@
-
 /**
  * Pulse Web — pages/Login.tsx
- * File version: 0.1.0
- * Purpose: Minimal login form using /auth/login.
+ * Version: v0.1.2
+ * Purpose: Sign-in form; redirects to intended `state.from` (or /me) on success.
  */
-import { useState } from "react";
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/state/auth";
-import { useNavigate } from "react-router-dom";
 
+import React, { useState } from "react";
+import { Navigate, useNavigate, useLocation, Link } from "react-router-dom";
+import { useAuth } from "@/providers/AuthProvider";
+
+/** Login
+ * v0.1.2 — Minimal, robust login with redirect handling.
+ */
 export default function Login() {
-  const nav = useNavigate();
-  const login = useAuthStore(s => s.login);
-  const [username, setUsername] = useState("test");
-  const [password, setPassword] = useState("test");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { login, isAuthed } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from || "/me";
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (isAuthed) {
+    // Already signed in → go to profile
+    return <Navigate to="/me" replace />;
+  }
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
+    setErr(null);
+    setSubmitting(true);
     try {
-      const r = await api.post("/auth/login", { username, password });
-      const { token, user } = r.data.data;
-      login(token, user);
-      nav("/");
+      await login(username.trim(), password);
+      navigate(from, { replace: true });
     } catch (e: any) {
-      setError(e?.response?.data?.error || "Login failed");
-    } finally {
-      setLoading(false);
+      setErr(e?.message || "Login failed");
+      setSubmitting(false);
     }
-  };
+  }
 
   return (
-    <div className="max-w-sm mx-auto">
-      <form onSubmit={onSubmit} className="card">
-        <div className="card-body space-y-3">
-          <div className="text-lg font-semibold">Login</div>
-          <label className="block text-sm">
-            <span>Username or Email</span>
-            <input className="mt-1 w-full rounded-xl border p-2" value={username} onChange={e=>setUsername(e.target.value)} />
-          </label>
-          <label className="block text-sm">
-            <span>Password</span>
-            <input type="password" className="mt-1 w-full rounded-xl border p-2" value={password} onChange={e=>setPassword(e.target.value)} />
-          </label>
-          {error && <div className="text-sm text-red-600">{error}</div>}
-          <button className="btn btn-primary w-full" disabled={loading}>{loading ? "…" : "Sign in"}</button>
+    <div className="mx-auto max-w-sm p-4">
+      <h1 className="mb-4 text-xl font-semibold">Sign in</h1>
+
+      <form onSubmit={onSubmit} className="space-y-3">
+        <div>
+          <label className="mb-1 block text-sm">Username</label>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring"
+            autoComplete="username"
+          />
         </div>
+        <div>
+          <label className="mb-1 block text-sm">Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring"
+            autoComplete="current-password"
+          />
+        </div>
+
+        {err && <p className="text-sm text-red-600">{err}</p>}
+
+        <button
+          disabled={submitting}
+          className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {submitting ? "Signing in..." : "Sign in"}
+        </button>
       </form>
+
+      <p className="mt-3 text-xs text-gray-500">
+        Try <code>test / test</code> or <code>admin / admin</code>.
+      </p>
+      <p className="mt-1 text-xs">
+        <Link to="/discover" className="underline">Back to Discover</Link>
+      </p>
     </div>
   );
 }

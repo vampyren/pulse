@@ -1,138 +1,135 @@
-/* Pulse Backend — db/seed.js (v0.1.0)
- * Creates a fresh DB schema and seeds demo data.
+/*
+ * Pulse Backend — db/seed.js
+ * File version: v0.2.0
+ * Purpose: Simple, idempotent-ish dev seed.
+ * - Resets core tables (safe DELETEs, FK off during wipe)
+ * - Seeds baseline users and sports
+ * - No groups/activities yet (to avoid FK errors while iterating)
  */
-/* Pulse Backend — db/seed.js (v0.1.0) */
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { db } from "./index.js";
-import { customAlphabet } from "nanoid";
-import bcrypt from "bcryptjs";
 
-const nanoid = customAlphabet("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz", 12);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const id = () => nanoid();
-const addDays = (d) => new Date(Date.now() + d * 86400000).toISOString();
+const fs = require("fs");
+const path = require("path");
+const Database = require("better-sqlite3");
+let bcrypt;
+try { bcrypt = require("bcrypt"); } catch { bcrypt = require("bcryptjs"); }
+const { customAlphabet } = require("nanoid");
+const nid = customAlphabet("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz", 12);
 
-function runSqlFile(file) {
-  const sql = fs.readFileSync(file, "utf8");
-  db.exec(sql);
+// --- DB path (matches your backend) ---
+const DB_PATH = process.env.PULSE_DB_PATH || path.join(process.env.HOME, "App/pulse/data/pulse.db");
+
+// --- helpers ---
+const hash = (pw) => bcrypt.hashSync(pw, 10);
+
+/** resetDev
+ * v0.2.0 — wipe tables in safe order (ignore if missing), FKs OFF during wipe.
+ */
+function resetDev(db) {
+  const execSafe = (sql) => { try { db.exec(sql); } catch { /* ignore */ } };
+  execSafe("PRAGMA foreign_keys = OFF;");
+  // children first
+  execSafe("DELETE FROM group_members;");
+  execSafe("DELETE FROM favorites;");
+  execSafe("DELETE FROM flags;");
+  execSafe("DELETE FROM ratings;");
+  execSafe("DELETE FROM messages;");
+  execSafe("DELETE FROM activities;");
+  execSafe("DELETE FROM groups;");
+  // parents
+  execSafe("DELETE FROM users;");
+  execSafe("DELETE FROM sports;");
+  execSafe("DELETE FROM venues;");
+  execSafe("PRAGMA foreign_keys = ON;");
 }
 
-function seed() {
-  // 1) Schema
-  runSqlFile(path.join(__dirname, "schema.sql"));
-
-  // 2) Sports (flexible, admin can add/remove later; basic emoji icons for now)
+/** seedSports
+ * v0.2.0 — stable IDs; easy to use in filters
+ */
+function seedSports(db) {
   const sports = [
-    { id: id(), name: "Padel",        icon: "🎾" },
-    { id: id(), name: "Football",     icon: "⚽" },
-    { id: id(), name: "Basketball",   icon: "🏀" },
-    { id: id(), name: "Volleyball",   icon: "🏐" },
-    { id: id(), name: "Tennis",       icon: "🎾" },
-    { id: id(), name: "Badminton",    icon: "🏸" },
-    { id: id(), name: "Running",      icon: "🏃" },
-    { id: id(), name: "Table Tennis", icon: "🏓" },
+    { id: "padel",         name: "Padel",        icon: "🎾" },
+    { id: "football",      name: "Football",     icon: "⚽" },
+    { id: "basketball",    name: "Basketball",   icon: "🏀" },
+    { id: "volleyball",    name: "Volleyball",   icon: "🏐" },
+    { id: "tennis",        name: "Tennis",       icon: "🎾" },
+    { id: "badminton",     name: "Badminton",    icon: "🏸" },
+    { id: "running",       name: "Running",      icon: "🏃" },
+    { id: "table_tennis",  name: "Table Tennis", icon: "🏓" },
   ];
-  const insSport = db.prepare("INSERT INTO sports (id,name,icon) VALUES (@id,@name,@icon)");
-  db.transaction(arr => arr.forEach(s => insSport.run(s)))(sports);
-
-  // 3) Users (with bcrypt-hashed passwords)
-  const users = [
-    { u:"admin", name:"Administrator", email:"admin@example.com", admin:1, city:"Stockholm", lat:59.329, lng:18.068 },
-    { u:"test",  name:"Test One",      email:"test@example.com",  admin:0, city:"Malmö",     lat:55.605, lng:13.003 },
-    { u:"test2", name:"Test Two",      email:"test2@example.com", admin:0, city:"Stockholm", lat:59.329, lng:18.068 },
-    { u:"test3", name:"Test Three",    email:"test3@example.com", admin:0, city:"Göteborg",  lat:57.708, lng:11.974 },
-    { u:"bob",   name:"Bob Berg",      email:"bob@example.com",   admin:0, city:"Uppsala",   lat:59.858, lng:17.638 },
-    { u:"carol", name:"Carol Carlsson",email:"carol@example.com", admin:0, city:"Lund",      lat:55.704, lng:13.191 },
-    { u:"dave",  name:"Dave Dahl",     email:"dave@example.com",  admin:0, city:"Västerås",  lat:59.609, lng:16.544 },
-    { u:"eva",   name:"Eva Ek",        email:"eva@example.com",   admin:0, city:"Stockholm", lat:59.329, lng:18.068 },
-    { u:"frank", name:"Frank Fors",    email:"frank@example.com", admin:0, city:"Göteborg",  lat:57.708, lng:11.974 },
-    { u:"gustav",name:"Gustav Gran",   email:"gustav@example.com",admin:0, city:"Stockholm", lat:59.329, lng:18.068 },
-    { u:"helena",name:"Helena Holm",   email:"helena@example.com",admin:0, city:"Malmö",     lat:55.605, lng:13.003 },
-  ];
-  const insUser = db.prepare(`
-    INSERT INTO users (id, username, name, email, password, is_admin, status, address_city, lat, lng)
-    VALUES (@id,@username,@name,@email,@password,@is_admin,'approved',@address_city,@lat,@lng)
-  `);
-  const usersExpanded = users.map(x => ({
-    id: id(),
-    username: x.u,
-    name: x.name,
-    email: x.email,
-    password: bcrypt.hashSync(x.u, 10),    // username == password per your request
-    is_admin: x.admin ? 1 : 0,
-    address_city: x.city,
-    lat: x.lat,
-    lng: x.lng,
-  }));
-  db.transaction(arr => arr.forEach(u => insUser.run(u)))(usersExpanded);
-
-  // 4) Groups / activities (6–8 items, mixed privacy)
-  const getSport = (name) => sports.find(s => s.name === name);
-  const getUser  = (uname) => usersExpanded.find(u => u.username === uname);
-
-  const groups = [
-    { title:"Morning Padel",    sport:"Padel",      creator:"test",   city:"Malmö",     lat:55.605, lng:13.003, day:1,  max:4,  level:"Mixed",    privacy:"PUBLIC",   place:"NK Padel" },
-    { title:"Afterwork Football",sport:"Football",  creator:"admin",  city:"Stockholm", lat:59.31,  lng:18.02,  day:2,  max:10, level:"Mixed",    privacy:"PUBLIC",   place:"Zinkensdamm IP" },
-    { title:"Friends Volleyball",sport:"Volleyball",creator:"admin",  city:"Stockholm", lat:59.33,  lng:18.06,  day:3,  max:10, level:"Mixed",    privacy:"FRIENDS",  place:"Arena 41" },
-    { title:"Invite-only Basketball",sport:"Basketball",creator:"test3",city:"Göteborg",lat:57.70,  lng:11.97,  day:4,  max:6,  level:"Advanced", privacy:"INVITE",   place:"Korsvägen" },
-    { title:"Tennis Ladder",    sport:"Tennis",     creator:"carol",  city:"Uppsala",   lat:59.858, lng:17.638, day:5,  max:8,  level:"Intermediate", privacy:"PUBLIC", place:"ULL Tennis" },
-    { title:"Badminton Night",  sport:"Badminton",  creator:"dave",   city:"Lund",      lat:55.704, lng:13.191, day:6,  max:6,  level:"Mixed",    privacy:"PUBLIC",   place:"Lund Hall" },
-    { title:"Casual Running",   sport:"Running",    creator:"gustav", city:"Stockholm", lat:59.34,  lng:18.07,  day:2,  max:20, level:"Mixed",    privacy:"PUBLIC",   place:"Djurgården Loop" },
-    { title:"Ping Pong Meetup", sport:"Table Tennis",creator:"helena",city:"Malmö",     lat:55.61,  lng:13.01,  day:7,  max:6,  level:"Mixed",    privacy:"PUBLIC",   place:"Malmö TT Club" },
-  ].map(g => ({
-    id: id(),
-    title: g.title,
-    details: `${g.title} — auto-seeded`,
-    sport_id: getSport(g.sport).id,
-    creator_id: getUser(g.creator).id,
-    location_full: g.place,
-    location_city: g.city,
-    lat: g.lat,
-    lng: g.lng,
-    date_time: addDays(g.day),
-    max_members: g.max,
-    experience_level: g.level,
-    privacy: g.privacy,
-  }));
-
-  const insGroup = db.prepare(`
-    INSERT INTO groups (id,title,details,sport_id,creator_id,location_full,location_city,lat,lng,date_time,max_members,experience_level,privacy)
-    VALUES (@id,@title,@details,@sport_id,@creator_id,@location_full,@location_city,@lat,@lng,@date_time,@max_members,@experience_level,@privacy)
-  `);
-  db.transaction(arr => arr.forEach(g => insGroup.run(g)))(groups);
-
-  // Creator ownership + some members
-  const insMember = db.prepare("INSERT INTO memberships (id, group_id, user_id, role) VALUES (@id,@group_id,@user_id,@role)");
-  db.transaction(arr => {
-    arr.forEach(g => insMember.run({ id: id(), group_id: g.id, user_id: g.creator_id, role: "owner" }));
-  })(groups);
-
-  // Extra joins for variety
-  const join = (title, user) => {
-    const g = groups.find(x => x.title === title);
-    const u = getUser(user);
-    if (g && u) insMember.run({ id: id(), group_id: g.id, user_id: u.id, role: "member" });
-  };
-  join("Morning Padel", "bob");
-  join("Morning Padel", "eva");
-  join("Afterwork Football", "test2");
-  join("Afterwork Football", "frank");
-  join("Badminton Night", "helena");
-  join("Ping Pong Meetup", "dave");
-
-  // Friendships (for FRIENDS visibility)
-  const insFriend = db.prepare("INSERT INTO friendships (id, requester_id, addressee_id, status) VALUES (@id,@requester_id,@addressee_id,@status)");
-  insFriend.run({ id: id(), requester_id: getUser("admin").id, addressee_id: getUser("test2").id, status: "accepted" });
-  insFriend.run({ id: id(), requester_id: getUser("admin").id, addressee_id: getUser("eva").id,   status: "accepted" });
-
-  // Invite example
-  const insInvite = db.prepare("INSERT INTO activity_invites (id, activity_id, user_id, status) VALUES (@id,@activity_id,@user_id,@status)");
-  const inviteGroup = groups.find(g => g.privacy === "INVITE");
-  if (inviteGroup) insInvite.run({ id: id(), activity_id: inviteGroup.id, user_id: getUser("bob").id, status: "pending" });
-
-  console.log("✔ Pulse seed complete (users & activities expanded)");
+  const stmt = db.prepare(
+    "INSERT INTO sports (id,name,icon) VALUES (@id,@name,@icon)"
+  );
+  const tx = db.transaction((arr) => arr.forEach((s) => stmt.run(s)));
+  tx(sports);
+  return sports.length;
 }
 
-seed();
+/** seedUsers
+ * v0.2.0 — your baseline users; bcrypt hashed; status=approved
+ */
+function seedUsers(db) {
+  const mk = (u, n, email, admin = false, city = "Malmö") => ({
+    id: nid(),
+    username: u,
+    name: n,
+    email,
+    password: hash(u), // password = username
+    is_admin: admin ? 1 : 0,
+    status: "approved",
+    address_city: city,
+    lat: 55.604, // rough Malmö center
+    lng: 13.003,
+  });
+
+  const users = [
+    mk("admin",  "Admin User",   "admin@example.com",  true),
+    mk("test",   "Test One",     "test@example.com"),
+    mk("test2",  "Test Two",     "test2@example.com"),
+    mk("test3",  "Test Three",   "test3@example.com"),
+    mk("bob",    "Bob Anders",   "bob@example.com"),
+    mk("carol",  "Carol Berg",   "carol@example.com"),
+    mk("dave",   "Dave Carl",    "dave@example.com"),
+    mk("eva",    "Eva Dahl",     "eva@example.com"),
+    mk("frank",  "Frank Elm",    "frank@example.com"),
+    mk("gustav", "Gustav Falk",  "gustav@example.com"),
+    mk("helena", "Helena Gård",  "helena@example.com"),
+  ];
+
+  const stmt = db.prepare(`
+    INSERT INTO users (id, username, name, email, password, is_admin, status, address_city, lat, lng)
+    VALUES (@id,@username,@name,@email,@password,@is_admin,@status,@address_city,@lat,@lng)
+  `);
+  const tx = db.transaction((arr) => arr.forEach((u) => stmt.run(u)));
+  tx(users);
+  return users.length;
+}
+
+/** main
+ * v0.2.0
+ */
+function main() {
+  // open DB (creates file if missing)
+  const db = new Database(DB_PATH);
+
+  resetDev(db);
+
+  // IMPORTANT: we assume schema already exists (your backend shipped it).
+  // If you want this file to also create schema, we can add: db.exec(fs.readFileSync(schemaPath,'utf8'))
+  // For now we just insert rows, same as your previous workflow after recreating DB.
+
+  const countSports = seedSports(db);
+  const countUsers  = seedUsers(db);
+
+  console.log(`[seed] sports: ${countSports}, users: ${countUsers}`);
+  db.close();
+}
+
+if (require.main === module) {
+  try {
+    main();
+    process.exit(0);
+  } catch (e) {
+    console.error("[seed] failed:", e);
+    process.exit(1);
+  }
+}
