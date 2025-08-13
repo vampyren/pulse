@@ -233,3 +233,63 @@
 ## 10) Change Log
 
 * **v0.1.0** — Initial spec; users & activities seeded; auth baseline; deployment topology set (Nginx + systemd).
+
+<!-- snapshot:v0.1.2 — added 2025-08-13 -->
+## Status snapshot (2025-08-13)
+
+**Infra & Deploy**
+- ✅ Domain `app1.kubara.se` via Nginx (SPA) with `/api/v2` proxy → backend `127.0.0.1:4010`.
+- ✅ Backend under systemd: `pulse-backend` (Node 22).
+- ✅ Health: `GET /api/v2/health`.
+- ✅ Deploy: `deploy.sh` (full) and **`deploy.fast.sh`** (web-only).
+- ✅ API & seeder use the same DB via `PULSE_DB_PATH=/home/vampyren/App/pulse/data/pulse.db`.
+
+**Backend**
+- ✅ Auth endpoints: `POST /auth/login` (JWT 7d), `GET /auth/me`, `GET /auth/admin/ping`.
+- ✅ Middleware: `authOptional`, `requireAuth`, `requireAdmin`.
+- ✅ **Sports**: `GET /api/v2/sports` (read-only).
+- ✅ Seeder (ESM): `backend/src/db/seed.mjs` → `npm run seed` resets & seeds **users + sports**.
+- ⏭ Read endpoints to add next: `GET /groups`, `GET /groups/:id`, `GET /venues`, `GET /activities?group=...`.
+
+**Database & Data**
+- ✅ SQLite at `~/App/pulse/data/pulse.db`.
+- ✅ Users (bcrypt; password = username): admin, test, test2, test3, bob, carol, dave, eva, frank, gustav, helena (mixed statuses for testing).
+- ✅ Sports (stable ids): padel, football, basketball, volleyball, tennis, badminton, running, table_tennis.
+- ⏭ Extend seed with: venues (admin-approved), groups (public/private + `join_mode` open/request/invite), group_members (owner/member/pending), activities (future), friendships (pending/accepted/rejected), flags.
+
+**Frontend (React + Vite + TS)**
+- ✅ Typed API client `web/src/lib/api.ts` (JWT storage; `login`, `me`, `logout`).
+- ✅ Auth provider + guards: `AuthProvider`, `Protected`, `AuthGate` (redirects to `/login`).
+- ✅ Routes:
+  - Public: `/discover`, `/map`, `/calendar`, `/login`, `/ui*`
+  - **Protected**: `/me`, `/wallet`, `/settings`, `/friends`, `/favorites`, `/book`, `/chat`
+- ✅ Global **glass bottom dock** (hover-expand on desktop; compact mobile labels).
+- ✅ Login works (e.g., test/test). Logged-out users cannot access protected pages.
+- 🔧 Discover shows baseline cards (teaser mode when logged out).
+- ⏭ Wire **sports chips** (from `/api/v2/sports`) to filter Discover client-side.
+
+**Immediate next step**
+1) Wire sports chips on Discover (frontend only).
+2) Add backend read endpoints (groups, group detail w/ members, venues, activities).
+3) Extend seeder with venues/groups/members/activities/friendships/flags and plug UI.
+
+<!-- changelog:added 2025-08-13 -->
+## Changelog (2025-08-13)
+
+- Added ESM route **`/api/v2/sports`** and mounted in `app.js`.
+- Set systemd override for **`PULSE_DB_PATH=/home/vampyren/App/pulse/data/pulse.db`** so API & seeder share the same DB.
+- Simplified seeding to **one command**: `npm run seed` (ESM `backend/src/db/seed.mjs`) → resets & seeds users + sports.
+- Hardened frontend auth:
+  - **Protected** routes now include `/book` and `/chat`.
+  - `AuthGate` enforces redirect to `/login` when logged out.
+- UI shell:
+  - Global glass bottom dock (hover expand on desktop, compact labels on mobile).
+  - Minor bounce/active states and menu-close behavior on route change.
+
+**References (files touched recently)**
+- `backend/src/routes/sports.js`
+- `backend/src/db/seed.mjs`
+- `backend/src/app.js`
+- `web/src/lib/api.ts`
+- `web/src/components/{Protected.tsx,AuthGate.tsx,GlassDockBottom.tsx}`
+- `web/src/App.tsx`
