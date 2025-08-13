@@ -14,7 +14,7 @@
 - **Roles**
   - [x] Anonymous (not logged in) — can browse teasers; no PII, no actions
   - [x] User — full app features subject to status
-  - [x] Admin — moderation, approvals, settings
+  - [x] Admin — moderation, approvals, settings, user feedback
 
 - **User Status**
   - [x] `pending` — needs approval (limited visibility)
@@ -199,3 +199,21 @@
 - `web/src/components/AuthGate.tsx`
 - `web/src/components/GlassDockBottom.tsx`
 - `web/src/App.tsx`
+
+## Admin Requests & Inbox (planned)
+- **Purpose:** let users request new sports/activities/venues or report moderation issues; admins see an inbox and approve/reject.
+- **Data model (proposed):** `admin_requests`
+  - Fields: `id`, `type ('sport'|'venue'|'feature'|'other')`, `payload (JSON)`, `status ('open'|'approved'|'rejected')`,
+    `created_by (user_id)`, `created_at`, `resolved_by (user_id, nullable)`, `resolved_at (nullable)`, `notes (nullable)`
+- **API (planned):**
+  - `POST /api/v2/admin/requests` (authed) — create a request (payload={ what, details, icon? })
+  - `GET  /api/v2/admin/requests` (admin) — list/filter `status`
+  - `POST /api/v2/admin/requests/:id/approve` (admin)
+  - `POST /api/v2/admin/requests/:id/reject`  (admin, body: { notes })
+- **Admin UI:**
+  - Inbox with tabs: Open / Approved / Rejected
+  - Row actions: View → Approve / Reject (with note)
+- **Notes:**
+  - If `type='sport'` and approved, auto-create a new row in `sports` with icon from request.
+  - Audit trail via flags/logs later.
+
