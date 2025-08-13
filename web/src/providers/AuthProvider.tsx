@@ -1,115 +1,99 @@
 /**
  * Pulse Web — providers/AuthProvider.tsx
- * Version: v0.1.1
- * Purpose: Global auth context: loads /auth/me on start, exposes login/logout/refresh.
+ * Version: v0.1.3
+ * Purpose: Central auth state from JWT; loads /auth/me on app start; exposes login/logout.
  */
 
-import React, {
-  createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
-} from "react";
-import {
-  me as apiMe,
-  login as apiLogin,
-  logout as apiLogout,
-  isAuthed as apiIsAuthed,
-  type User,
-} from "@/lib/api";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import * as api from "@/lib/api";
 
-/** AuthContextValue
- * v0.1.1 — Public shape for consumers.
- */
-export type AuthContextValue = {
-  user: User | null;
+type AuthCtx = {
+  user: api.User | null;
   loading: boolean;
-  error: string | null;
-  isAuthed: boolean;
+  /** login
+   * v0.1.3 — calls API login (stores JWT) and sets user in context.
+   */
   login: (username: string, password: string) => Promise<void>;
+  /** logout
+   * v0.1.3 — clears token + user state.
+   */
   logout: () => void;
-  refresh: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextValue>({
+const Ctx = createContext<AuthCtx>({
   user: null,
   loading: true,
-  error: null,
-  isAuthed: false,
   login: async () => {},
   logout: () => {},
-  refresh: async () => {},
 });
 
-/** AuthProvider
- * v0.1.1 — Wrap app to enable auth state.
- */
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<api.User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  /** refresh
-   * v0.1.1 — Re-fetch /auth/me if a JWT exists.
-   */
-  const refresh = useCallback(async () => {
-    if (!apiIsAuthed()) {
-      setUser(null);
-      setError(null);
-      return;
-    }
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await apiMe(); // { user }
-      setUser(res.user);
-    } catch (e: any) {
-      setUser(null);
-      setError(e?.message ?? "Failed to load current user");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /** login
-   * v0.1.1 — Do /auth/login, store token (handled in api), then refresh.
-   */
-  const login = useCallback(async (username: string, password: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await apiLogin(username, password);
-      await refresh();
-    } catch (e: any) {
-      setUser(null);
-      setError(e?.message ?? "Login failed");
-      setLoading(false);
-      throw e;
-    }
-  }, [refresh]);
-
-  /** logout
-   * v0.1.1 — Clear token & reset state.
-   */
-  const logout = useCallback(() => {
-    apiLogout();
-    setUser(null);
-    setError(null);
-    setLoading(false);
-  }, []);
-
+  /** on mount: if a token exists, resolve /auth/me */
   useEffect(() => {
-    if (apiIsAuthed()) void refresh();
-    else setLoading(false);
-  }, [refresh]);
+    let mounted = true;
+    (async () => {
+      try {
+        if (api.getToken()) {
+          const { user } = await api.me();
+          if (mounted) setUser(user);
+        }
+      } catch {
+        // 401 or network → ensure clean state
+        api.logout();
+        if (mounted) setUser(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user, loading, error, isAuthed: !!user, login, logout, refresh,
-  }), [user, loading, error, login, logout, refresh]);
+  /** listen for token changes from other tabs/windows */
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key !== "pulse_jwt") return;
+      // token added → try to fetch user; removed → clear user
+      (async () => {
+        if (api.getToken()) {
+          try {
+            const { user } = await api.me();
+            setUser(user);
+          } catch {
+            api.logout();
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      })();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  async function doLogin(username: string, password: string) {
+    const { user } = await api.login(username, password); // api.login saves JWT
+    setUser(user);
+  }
+
+  function doLogout() {
+    api.logout();
+    setUser(null);
+  }
+
+  return (
+    <Ctx.Provider value={{ user, loading, login: doLogin, logout: doLogout }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 /** useAuth
- * v0.1.1 — Hook to consume auth context.
+ * v0.1.3 — access user/loading/login/logout
  */
 export function useAuth() {
-  return useContext(AuthContext);
+  return useContext(Ctx);
 }

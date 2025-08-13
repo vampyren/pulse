@@ -1,23 +1,21 @@
 /**
  * Pulse Web — main.tsx
  * Version: v0.1.1
- * Purpose: App entry; wraps with BrowserRouter and AuthProvider.
+ * Purpose: App bootstrap; wraps with AuthProvider + BrowserRouter.
  */
-
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import App from "./App";
-import DevErrorBoundary from "@/components/DevErrorBoundary";
 import { AuthProvider } from "@/providers/AuthProvider";
+import App from "./App";
 import "@/styles/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <DevErrorBoundary><App /></DevErrorBoundary>
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </AuthProvider>
   </React.StrictMode>
 );

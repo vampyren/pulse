@@ -13,11 +13,12 @@ import { useAuth } from "@/providers/AuthProvider";
  * v0.1.1 — Profile placeholder with Logout.
  */
 export default function Me() {
-  const { user, isAuthed, logout } = useAuth();
+  const { user, logout } = useAuth();
+  const authed = !!user;
   const navigate = useNavigate();
   const doLogout = () => { apiLogout(); logout(); navigate("/login"); };
 
-  if (!isAuthed) {
+  if (!authed) {
     return (
       <div className="mx-auto max-w-5xl">
         <h1 className="mb-3 text-xl font-semibold">Me</h1>

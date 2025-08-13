@@ -1,7 +1,7 @@
 /** 
  * Pulse Web — lib/api.ts
- * v0.1.1
- * Purpose: Typed fetch client, JWT storage, and basic auth calls.
+ * v0.1.2
+ * Purpose: Typed fetch client, JWT storage, auth calls, and sports read.
  */
 
 type ApiOk<T> = { ok: true; data: T; meta?: unknown };
@@ -14,10 +14,16 @@ export type User = {
   name: string | null;
   email: string;
   is_admin: boolean;
-  status: "pending" | "approved" | "suspended" | "banned";
+  status: "pending" | "approved" | "suspended" | "rejected";
   city?: string | null;
   language?: string | null;
   theme?: "light" | "dark" | "system";
+};
+
+export type Sport = {
+  id: string;
+  name: string;
+  icon?: string;
 };
 
 const BASE = (import.meta.env.VITE_API_BASE_URL || "/api/v2").replace(/\/+$/, "");
@@ -55,7 +61,7 @@ export function setToken(token: string | null) {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    "accept": "application/json",
+    accept: "application/json",
     ...(init?.body ? { "content-type": "application/json" } : {}),
     ...(token ? { authorization: `Bearer ${token}` } : {}),
     ...(init?.headers as Record<string, string> | undefined),
@@ -110,4 +116,12 @@ export function logout() {
  */
 export function isAuthed() {
   return !!getToken();
+}
+
+/** getSports
+ * v0.1.2
+ * Returns array of sports [{ id, name, icon }]
+ */
+export async function getSports(): Promise<Sport[]> {
+  return request<Sport[]>(`/sports`, { method: "GET" });
 }
