@@ -12,3 +12,10 @@ backend/yarn-error.log*
 backend/.env
 backend/data/*.db
 backend/data/*.sqlite
+
+# Vite & build caches
+node_modules/
+web/node_modules/
+web/node_modules/.vite/
+**/node_modules/.vite/
+**/node_modules/.vite/deps_temp_*/
