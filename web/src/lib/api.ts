@@ -1,127 +1,136 @@
-/** 
+/**
  * Pulse Web — lib/api.ts
- * v0.1.2
- * Purpose: Typed fetch client, JWT storage, auth calls, and sports read.
+ * Version: v0.3.0
+ * Purpose: Typed API client + JWT storage
+ * Notes:
+ *  - Adds read-only groups/venues/activities methods
+ *  - Keeps login/me/logout
  */
-
-type ApiOk<T> = { ok: true; data: T; meta?: unknown };
-type ApiErr = { ok: false; error: string; meta?: unknown };
-type ApiResp<T> = ApiOk<T> | ApiErr;
 
 export type User = {
   id: string;
   username: string;
-  name: string | null;
+  name: string;
   email: string;
   is_admin: boolean;
-  status: "pending" | "approved" | "suspended" | "rejected";
+  status: string;
   city?: string | null;
   language?: string | null;
-  theme?: "light" | "dark" | "system";
+  theme?: string | null;
 };
 
-export type Sport = {
+export type Group = {
   id: string;
   name: string;
-  icon?: string;
+  sport_id: string;
+  privacy: "public" | "friends" | "invite";
+  join_mode: "instant" | "request" | "invite_only";
+  city: string | null;
+  owner_id: string;
+  status: "active" | "archived" | "cancelled";
+  created_at: string;
+  updated_at: string;
 };
 
-const BASE = (import.meta.env.VITE_API_BASE_URL || "/api/v2").replace(/\/+$/, "");
-const TOKEN_KEY = "pulse_jwt";
+export type Activity = {
+  id: string;
+  group_id: string;
+  title: string;
+  starts_at: string;
+  price_cents: number;
+  currency: string;
+  privacy: "public" | "private";
+  details?: string | null;
+};
 
-/** getToken
- * v0.1.1
- * Returns the stored JWT or null.
- */
-export function getToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+export type Venue = {
+  id: string;
+  name: string;
+  city: string;
+  lat: number;
+  lng: number;
+  approved: number;
+  created_by: string;
+};
+
+// NEW — single source of truth
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v2";
+
+type Ok<T> = { ok: true; data: T; meta: any };
+type Fail = { ok: false; error?: string | null };
+
+const tokenKey = "pulse.jwt";
+
+export function getToken() {
+  return localStorage.getItem(tokenKey) || "";
+}
+export function setToken(t: string) {
+  localStorage.setItem(tokenKey, t);
+}
+export function clearToken() {
+  localStorage.removeItem(tokenKey);
 }
 
-/** setToken
- * v0.1.1
- * Saves or clears the JWT.
- */
-export function setToken(token: string | null) {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    /* ignore storage errors */
-  }
-}
-
-/** request
- * v0.1.1
- * Minimal fetch wrapper that attaches Authorization if a token exists.
- */
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken();
+// Core fetch wrapper
+async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
-    accept: "application/json",
-    ...(init?.body ? { "content-type": "application/json" } : {}),
-    ...(token ? { authorization: `Bearer ${token}` } : {}),
-    ...(init?.headers as Record<string, string> | undefined),
+    "content-type": "application/json",
+    ...(init.headers as any),
   };
+  const token = getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}${path}`, { ...init, headers });
-  const json = (await res.json().catch(() => ({}))) as ApiResp<T>;
-
-  if (!("ok" in json)) {
-    throw new Error(`Unexpected API response from ${path}`);
-  }
-  if (!json.ok) {
-    // Clear token on auth failures to force re-login
-    if (res.status === 401) setToken(null);
-    throw new Error(json.error || `Request failed: ${res.status}`);
-  }
-  return json.data;
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as T;
 }
 
-/** login
- * v0.1.1
- * Authenticates and stores JWT. Returns { token, user }.
- */
+// Auth
 export async function login(username: string, password: string) {
-  const data = await request<{ token: string; user: User }>(`/auth/login`, {
+  const r = await api<Ok<{ token: string; user: User }>>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
-  setToken(data.token);
-  return data;
+  setToken(r.data.token);
+  return r.data.user;
 }
 
-/** me
- * v0.1.1
- * Returns the current authenticated user.
- */
 export async function me() {
-  return request<{ user: User }>(`/auth/me`, { method: "GET" });
+  const r = await api<Ok<{ user: User }>>("/auth/me");
+  return r.data.user;
 }
 
-/** logout
- * v0.1.1
- * Clears token (client only).
- */
-export function logout() {
-  setToken(null);
+export async function logout() {
+  clearToken();
 }
 
-/** isAuthed
- * v0.1.1
- * Quick client-side check for presence of JWT.
- */
-export function isAuthed() {
-  return !!getToken();
+// Sports (kept)
+export async function getSports() {
+  const r = await api<Ok<Array<{ id: string; name: string; icon?: string }>>>("/sports");
+  return r.data;
 }
 
-/** getSports
- * v0.1.2
- * Returns array of sports [{ id, name, icon }]
- */
-export async function getSports(): Promise<Sport[]> {
-  return request<Sport[]>(`/sports`, { method: "GET" });
+// NEW: Groups / Group
+export async function getGroups(params: Partial<{ city: string; sport: string; privacy: string; status: string }> = {}) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => v && q.set(k, v));
+  const r = await api<Ok<Group[]>>(`/groups${q.toString() ? `?${q.toString()}` : ""}`);
+  return r.data;
+}
+export async function getGroup(id: string) {
+  const r = await api<Ok<{ group: Group; members: Array<{ user_id: string; role: string; status: string; username: string; name: string }>; activities: Activity[] }>>(`/groups/${id}`);
+  return r.data;
+}
+
+// NEW: Venues
+export async function getVenues() {
+  const r = await api<Ok<Venue[]>>(`/venues`);
+  return r.data;
+}
+
+// NEW: Activities
+export async function getActivities(group?: string) {
+  const qs = group ? `?group=${encodeURIComponent(group)}` : "";
+  const r = await api<Ok<Activity[]>>(`/activities${qs}`);
+  return r.data;
 }

@@ -1,22 +1,44 @@
-/* Pulse Backend — app.js
- * v0.1.0
- * Express app setup (minimal: JSON, helmet, logs, health).
+/**
+ * Pulse Backend — app.js
+ * Version: v0.3.1
+ * Purpose: Express app composition and routes mounting
+ * Pattern:
+ *  - Export `app` as a named export for server.js.
+ *  - All route files must `export default router`.
  */
+
 import express from "express";
-import sportsRouter from "./routes/sports.js";
+import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 
-export const app = express();
+// Routes (all export default router)
+import authRoutes from "./routes/auth.js";
+import sportsRoutes from "./routes/sports.js";
+import groupsRoutes from "./routes/groups.js";
+import venuesRoutes from "./routes/venues.js";
+import activitiesRoutes from "./routes/activities.js";
 
-app.use(helmet());
+export const app = express(); // named export for server.js
+
+// Middlewares
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
+app.use(cors());
 app.use(express.json());
-app.use(morgan("tiny"));
+app.use(morgan("dev"));
 
 // Health
-app.get("/api/v2/health", (req, res) => {
-  res.json({ ok: true, service: "Pulse API", version: "0.1.0" });
-});
+app.get("/api/v2/health", (_req, res) =>
+  res.json({ ok: true, data: { status: "ok" }, meta: null })
+);
 
-app.use("/api/v2", sportsRouter); // v0.1.2 sports
-export default app;
+// Routes (all mounted here)
+app.use("/api/v2/auth", authRoutes);
+app.use("/api/v2/sports", sportsRoutes);
+app.use("/api/v2/groups", groupsRoutes);
+app.use("/api/v2/venues", venuesRoutes);
+app.use("/api/v2/activities", activitiesRoutes);

@@ -1,9 +1,15 @@
+/* Pulse Web — styles/index.css
+ * Version: v0.1.1
+ * Purpose: Global Tailwind entry + small utility helpers (cards, badges, no-scrollbar)
+ */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens */
 :root { --radius: 14px; }
+
 /* Simple card & button helpers */
 .btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition; }
 .btn-primary { @apply bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800; }
@@ -13,3 +19,7 @@
 .badge-green { @apply bg-green-100 text-green-700; }
 .badge-blue { @apply bg-blue-100 text-blue-700; }
 .badge-purple { @apply bg-purple-100 text-purple-700; }
+
+/* Util: hide scrollbars where we use horizontal chip lists */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

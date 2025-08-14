@@ -1,7 +1,7 @@
 # Pulse — Data Model
 
-**Version:** v0.1.0
-**Date:** 2025‑08‑11
+**Version:** v0.1.1
+**Date:** 2025‑08‑14
 **Owner:** Aryantech
 **Scope:** Authoritative schema for Pulse (SQLite) with forward‑compat for chat & bookings.
 
@@ -603,3 +603,25 @@ Use it for admin/user history views and moderation trails.
 ## 10) Validation Checklist (Data Model)
 
 *
+
+
+---
+
+## API Note — Groups Filtering (append-only, 2025-08-14)
+
+**Endpoint:** `GET /api/v2/groups`
+
+**Added filter:** `city_in` — comma-separated list of exact city names (case-insensitive).  
+Examples:
+```
+/api/v2/groups?city_in=Malmö,Stockholm
+/api/v2/groups?city_in=Malmö,Stockholm&sport=tennis
+```
+**Existing filters (unchanged):**
+- `privacy` — `public|friends|invite`
+- `sport` — comma list
+- `city_like` — prefix match (case-insensitive)
+
+**Rule:** If both `city_in` and `city_like` are present, `city_in` takes precedence.  
+**Schema:** No database changes required.
+

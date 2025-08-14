@@ -1,21 +1,24 @@
 /**
  * Pulse Web — main.tsx
- * Version: v0.1.1
- * Purpose: App bootstrap; wraps with AuthProvider + BrowserRouter.
+ * Version: v0.1.3
+ * Purpose: App bootstrap + global styles import
  */
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { AuthProvider } from "@/providers/AuthProvider";
 import App from "./App";
-import "@/styles/index.css";
+import { AuthProvider } from "@/providers/AuthProvider";
+
+// Tailwind & global styles
+import "./styles/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <App />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

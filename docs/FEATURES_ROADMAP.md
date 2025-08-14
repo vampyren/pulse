@@ -1,6 +1,6 @@
 # Pulse — Product Spec, Roadmap & Validation Checklist
-**Version:** v0.1.2  
-**Date:** 2025‑08‑13  
+**Version:** v0.1.3  
+**Date:** 2025‑08‑14  
 **Owner:** Aryantech  
 **Repo:** `github.com/vampyren/pulse`  
 **Deploy:** https://app1.kubara.se
@@ -216,4 +216,32 @@
 - **Notes:**
   - If `type='sport'` and approved, auto-create a new row in `sports` with icon from request.
   - Audit trail via flags/logs later.
+
+
+
+---
+
+## 2025-08-14 — UI Kit & Discover v0.8.0 (append-only)
+
+**UI Kit standardization**
+- Use shared components across the app: `Button`, `Chip`, `Popover` (`Popover`, `PopoverTrigger`, `PopoverContent`), `PrivacyBadge`.
+- Applied to top-right **Language** and **Theme** menus and to the **Discover** filters.
+
+**Discover (read-only)**
+- Header simplified to **three controls** + city:
+  - **All** — resets privacy to `all`, clears sports & city input.
+  - **Privacy** — popover, single-select: *All / Public / Friends / Invite*.
+  - **Activity** — popover, multi-select sports.
+  - **City** input (debounced) with **Clear** on same row.
+- Filters persist in `localStorage`. No list flicker (spinner near count).
+
+**Group Detail**
+- `/groups/:id` route present and rendering; richer actions will be added later (join/request/invite, members flyout).
+
+**Backend support**
+- `GET /api/v2/groups` now also supports **`city_in`** (comma list, case-insensitive). If both `city_in` and `city_like` are present, `city_in` wins.
+
+**Next (short-term)**
+- Badge counts on Activity (e.g., “Activity (2)”).
+- Optional “contains” matching for city (`LIKE '%term%'`).
 

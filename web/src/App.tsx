@@ -1,12 +1,15 @@
 /**
  * Pulse Web — App.tsx
- * Version: v0.1.4
- * Purpose: App shell + routes. Uses global glass bottom dock; Friends moved under Me.
+ * Version: v0.1.7
+ * Purpose: App shell + routes. Uses global glass bottom dock; Friends under Me.
+ * Changes (v0.1.7):
+ *  - Added /groups/:id route to GroupDetail page.
+ *  - Header uses TopBarRight (theme + language) for consistency.
  */
 
 import React from "react";
-import Protected from "@/components/Protected"; // v0.1.0
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import Protected from "@/components/Protected";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 // Pages
 import Discover from "@/pages/Discover";
@@ -24,9 +27,11 @@ import Friends from "@/pages/Friends";
 import Settings from "@/pages/Settings";
 import Wallet from "@/pages/Wallet";
 import Favorites from "@/pages/Favorites";
+import GroupDetail from "@/pages/GroupDetail";
 
-// Global glass dock
+// Global glass dock + top-right controls
 import GlassDockBottom from "@/components/GlassDockBottom";
+import { TopBarRight } from "@/components/TopBarRight";
 
 export default function App() {
   return (
@@ -35,7 +40,7 @@ export default function App() {
       <header className="sticky top-0 z-20 w-full border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-3 py-2">
           <div className="text-sm font-semibold">Pulse</div>
-          <div className="text-xs text-gray-500">web</div>
+          <TopBarRight />
         </div>
       </header>
 
@@ -50,6 +55,9 @@ export default function App() {
           <Route path="/book" element={<Protected><Book /></Protected>} />
           <Route path="/chat" element={<Protected><Chat /></Protected>} />
           <Route path="/me" element={<Protected><Me /></Protected>} />
+
+          {/* Group detail */}
+          <Route path="/groups/:id" element={<GroupDetail />} />
 
           {/* Subpages linked from Me menu */}
           <Route path="/friends" element={<Protected><Friends /></Protected>} />
@@ -74,5 +82,3 @@ export default function App() {
     </div>
   );
 }
-
-/* Note: the old Tab() component was removed in v0.1.4 since the glass dock replaced it. */

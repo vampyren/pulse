@@ -92,3 +92,4 @@ import { requireAdmin } from "../middleware/auth.js";
 router.get("/admin/ping", requireAuth, requireAdmin, (_req, res) => {
   return ok(res, { pong: true, scope: "admin" });
 });
+export default router;

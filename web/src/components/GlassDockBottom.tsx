@@ -1,30 +1,21 @@
 /**
- * Pulse Web — components/GlassDockBottom.tsx
- * Version: v0.1.8
- * Purpose: Glassy bottom dock with:
- *  - Mobile labels under icons; desktop labels always visible
- *  - Me menu reflects auth state (Login vs Logout)
- *  - Closes on navigation; Me-only active when menu is open
- *  - Map/Calendar toggle with a subtle bounce
+ * Pulse — components/GlassDockBottom.tsx
+ * Version: v0.1.9
+ * Author: Team Pulse
+ * Summary: Glassy bottom dock; Me menu items depend on auth. Auth via AuthProvider only.
+ * Last-Changed: 2025-08-13
  */
 
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/providers/AuthProvider";
-import { isAuthed as tokenPresent, logout as apiLogout } from "@/lib/api";
+import { logout as apiLogout } from "@/lib/api";
 
 export default function GlassDockBottom() {
   const loc = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
-
-  // === Auth tracking (JWT is source of truth) ===
-  const [authed, setAuthed] = useState<boolean>(tokenPresent());
-  useEffect(() => {
-    const onStorage = () => setAuthed(tokenPresent());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const { user, logout } = useAuth();
+  const authed = !!user;
 
   // Map/Calendar toggle follows current route
   const [mapIsCalendar, setMapIsCalendar] = useState(false);
@@ -32,7 +23,7 @@ export default function GlassDockBottom() {
     setMapIsCalendar(loc.pathname.startsWith("/calendar"));
   }, [loc.pathname]);
 
-  // Hover labels on desktop are now always shown (cleaner), mobile uses stacked layout
+  // Hover labels on desktop are always shown; mobile uses stacked layout
   const showLabelsDesktop = true;
 
   // Swipe-up to open Me menu (mobile)
@@ -74,16 +65,16 @@ export default function GlassDockBottom() {
   }
 
   function onLogout() {
-    apiLogout();   // clear JWT
-    logout();      // clear any context state if present
-    setAuthed(false);
+    apiLogout(); // clear JWT
+    logout();    // clear context state
     setMenuOpen(false);
     navigate("/login");
   }
 
   // active states — only Me is active while menu is open
   const activeDiscover = loc.pathname.startsWith("/discover") && !menuOpen;
-  const activeMapCal = (loc.pathname.startsWith("/map") || loc.pathname.startsWith("/calendar")) && !menuOpen;
+  const activeMapCal =
+    (loc.pathname.startsWith("/map") || loc.pathname.startsWith("/calendar")) && !menuOpen;
   const activeBook = loc.pathname.startsWith("/book") && !menuOpen;
   const activeChat = loc.pathname.startsWith("/chat") && !menuOpen;
   const activeMe =
@@ -131,9 +122,7 @@ export default function GlassDockBottom() {
             title={mapLabel}
             className={[
               "flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 text-sm transition-colors",
-              activeMapCal
-                ? "bg-white font-medium shadow-[0_6px_20px_rgba(0,0,0,0.12)]"
-                : "hover:bg-white/85",
+              activeMapCal ? "bg-white font-medium shadow-[0_6px_20px_rgba(0,0,0,0.12)]" : "hover:bg-white/85",
             ].join(" ")}
             style={{
               transform: mapBtn.b ? "scale(1.12) translateY(-1px)" : undefined,
@@ -170,16 +159,17 @@ export default function GlassDockBottom() {
           {/* Me (menu; items depend on auth) */}
           <div className="relative">
             <button
-              onClick={() => { meBtn.trigger(); setMenuOpen(v => !v); }}
+              onClick={() => {
+                meBtn.trigger();
+                setMenuOpen((v) => !v);
+              }}
               aria-current={activeMe ? "page" : undefined}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               title="Me"
               className={[
                 "flex flex-col sm:flex-row w-full items-center justify-center gap-0.5 sm:gap-2 rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 text-sm transition-colors",
-                activeMe
-                  ? "bg-white font-medium shadow-[0_6px_20px_rgba(0,0,0,0.12)]"
-                  : "hover:bg-white/85",
+                activeMe ? "bg-white font-medium shadow-[0_6px_20px_rgba(0,0,0,0.12)]" : "hover:bg-white/85",
               ].join(" ")}
               style={{
                 transform: meBtn.b ? "scale(1.12) translateY(-1px)" : undefined,
@@ -204,10 +194,7 @@ export default function GlassDockBottom() {
                     <MenuLink to="/favorites" label="Favorites" onClick={() => setMenuOpen(false)} />
                     <MenuLink to="/settings" label="Settings" onClick={() => setMenuOpen(false)} />
                     <hr className="my-1 border-gray-200/70" />
-                    <button
-                      onClick={onLogout}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-white"
-                    >
+                    <button onClick={onLogout} className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-white">
                       Logout
                     </button>
                   </>

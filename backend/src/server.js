@@ -1,21 +1,17 @@
 /* Pulse Backend — server.js
- * v0.1.0 — boot the API
+ * Version: v0.2.0
+ * Purpose: Boot the API (app.js handles all route mounting)
  */
+
 import "dotenv/config";
 import { config } from "./config.js";
-import { app } from "./app.js";
+import { app } from "./app.js"; // named export from app.js
 
-// DB init (opens the SQLite file so queries work)
+// DB init
 import "./db/index.js";
 
-// Routes
-import { router as groupsRouter } from "./routes/groups.js";
-app.use("/api/v2/groups", groupsRouter);
-
-import { router as authRouter } from "./routes/auth.js";
-app.use("/api/v2/auth", authRouter);
-
-const PORT = Number(process.env.PORT || config.PORT || 4000);
+// Start server
+const PORT = Number(process.env.PORT || config.PORT || 4010);
 app.listen(PORT, () => {
-  console.log(`[Pulse] API v0.1.0 listening on :${PORT}`);
+  console.log(`[Pulse] API v0.2.0 listening on :${PORT}`);
 });

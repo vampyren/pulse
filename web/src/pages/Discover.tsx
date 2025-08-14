@@ -1,295 +1,291 @@
 /**
  * Pulse Web — pages/Discover.tsx
- * Version: v0.1.7
- * Purpose: Sports filters w/ mobile dropdown & persistence; reads auth from provider.
+ * Version: v0.8.0
+ * Purpose: Discover with a simplified header:
+ *   - Row 1: [All] [Privacy ▼] [Activity ▼]
+ *     • All resets privacy -> "all" and clears selected sports
+ *     • Privacy popover: single-select (All/Public/Friends/Invite)
+ *     • Activity popover: multi-select sports
+ *   - Row 2: [ City input ............... ]  [Clear]
+ * Notes:
+ *   - Debounced city_like; no flicker (shows tiny spinner)
+ *   - Filters persisted in localStorage
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import * as api from "@/lib/api";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/providers/AuthProvider";
+import { PrivacyBadge } from "@/components/PrivacyBadge";
+import ClampText from "@/components/ui/ClampText";
+import Button from "@/components/ui/Button";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/Popover";
 
-/** MockCard
- * v0.1.3 — tiny mock feed so we can validate layout/UX before real data.
- */
-type MockCard = {
+type Group = {
   id: string;
-  title: string;
+  name: string;
   sport_id: string;
-  teaser: string;
-  when: string;
+  privacy: "public" | "friends" | "invite" | "private";
+  join_mode: string;
+  city?: string | null;
+  status: string;
 };
 
-const MOCK: MockCard[] = [
-  { id: "a1", title: "Morning Run 5K", sport_id: "running",    teaser: "Easy pace along the canal", when: "Tomorrow 07:30" },
-  { id: "a2", title: "Padel Doubles",   sport_id: "padel",      teaser: "Intermediate ladder night", when: "Fri 19:00" },
-  { id: "a3", title: "Open Scrimmage",  sport_id: "basketball", teaser: "Casual full-court",         when: "Sat 18:00" },
-  { id: "a4", title: "After-work Badminton", sport_id: "badminton", teaser: "Bring your own racket", when: "Thu 17:30" },
-];
+type Sport = { id: string; name: string };
 
-// LocalStorage key for saved filters
-const LS_KEY = "pulse_discover_filters_v1";
+const LS_KEY = "pulse.discover.filters.v6";
+
+type Filters = {
+  cityLike: string; // single input (no city chips)
+  privacy: "all" | "public" | "friends" | "invite";
+  sports: string[]; // multi
+};
+
+function buildQuery(f: Filters) {
+  const p = new URLSearchParams();
+  if (f.cityLike) p.set("city_like", f.cityLike);
+  if (f.privacy !== "all") p.set("privacy", f.privacy);
+  if (f.sports.length) p.set("sport", f.sports.join(","));
+  const qs = p.toString();
+  return qs ? `/api/v2/groups?${qs}` : `/api/v2/groups`;
+}
+
+const PRIVACY_ITEMS = [
+  { id: "all", label: "All", icon: "✨" },
+  { id: "public", label: "Public", icon: "🌐" },
+  { id: "friends", label: "Friends", icon: "👥" },
+  { id: "invite", label: "Invite", icon: "🔒" },
+] as const;
 
 export default function Discover() {
   const { user } = useAuth();
-  const authed = !!user;
 
-  const [sports, setSports] = useState<api.Sport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Set<string>>(new Set()); // empty = All
-  const [open, setOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-
-  /** load saved filters (once) */
-  useEffect(() => {
+  // Filters (persisted)
+  const [filters, setFilters] = useState<Filters>(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) setSelected(new Set(arr.filter((x) => typeof x === "string")));
-      }
-    } catch {
-      /* ignore bad LS */
-    }
-  }, []);
+      if (raw) return JSON.parse(raw) as Filters;
+    } catch {}
+    return { cityLike: "", privacy: "all", sports: [] };
+  });
 
-  /** fetch sports */
+  // Data
+  const [sports, setSports] = useState<Sport[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debounce city typing to reduce fetches
+  const debTimer = useRef<number | null>(null);
   useEffect(() => {
-    let mounted = true;
+    if (debTimer.current) window.clearTimeout(debTimer.current);
+    debTimer.current = window.setTimeout(() => {
+      setFilters((f) => ({ ...f })); // trigger effect by identity change
+    }, 300);
+    return () => { if (debTimer.current) window.clearTimeout(debTimer.current); };
+  }, [filters.cityLike]);
+
+  // Persist
+  useEffect(() => { localStorage.setItem(LS_KEY, JSON.stringify(filters)); }, [filters]);
+
+  // Load sports once
+  useEffect(() => {
+    let alive = true;
     (async () => {
       try {
-        const list = await api.getSports();
-        if (mounted) setSports(list);
-      } catch {
-        if (mounted) setSports([]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+        const r = await fetch("/api/v2/sports"); const j = await r.json();
+        if (alive && j?.ok) setSports(j.data as Sport[]);
+      } catch {}
     })();
-    return () => { mounted = false; };
+    return () => { alive = false; };
   }, []);
 
-  /** persist selection to localStorage whenever it changes */
+  // Load groups on filters change
   useEffect(() => {
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(Array.from(selected)));
-    } catch {
-      /* ignore LS errors (private mode, etc.) */
-    }
-  }, [selected]);
+    let alive = true;
+    (async () => {
+      setError(null); setFetching(true);
+      try {
+        const res = await fetch(buildQuery(filters));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j = await res.json();
+        if (!j?.ok) throw new Error("Bad payload");
+        if (alive) { setGroups(j.data as Group[]); setInitialLoading(false); }
+      } catch (e: any) {
+        if (alive) { setError(e?.message || "Failed to load groups"); setInitialLoading(false); }
+      } finally { if (alive) setFetching(false); }
+    })();
+    return () => { alive = false; };
+  }, [filters]);
 
-  /** close dropdown when clicking outside */
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!panelRef.current) return;
-      if (!panelRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-
-  /** filtered view of mock feed */
-  const filtered = useMemo(() => {
-    if (selected.size === 0) return MOCK;
-    return MOCK.filter((m) => selected.has(m.sport_id));
-  }, [selected]);
-
-  /** toggle a sport id */
-  function toggleSport(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  // Handlers
+  const setPrivacy = (p: Filters["privacy"]) => setFilters(f => ({ ...f, privacy: p }));
+  const toggleSport = (id: string) =>
+    setFilters(f => {
+      const s = new Set(f.sports);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return { ...f, sports: Array.from(s) };
     });
+  const clearAll = () => setFilters({ cityLike: "", privacy: "all", sports: [] });
+
+  const countLabel = useMemo(() => {
+    const bits: string[] = [];
+    if (filters.privacy !== "all") bits.push(filters.privacy);
+    if (filters.sports.length) bits.push(`sports:${filters.sports.join(",")}`);
+    if (filters.cityLike) bits.push(`city:${filters.cityLike}`);
+    return `${groups.length} groups${bits.length ? " · " + bits.join(" · ") : ""}`;
+  }, [groups.length, filters]);
+
+  // Early returns AFTER all hooks
+  if (initialLoading) {
+    return (
+      <div className="p-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-24 rounded-2xl border bg-white/60 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-4">
+        <div className="rounded-2xl border bg-red-50 p-4 text-red-700">
+          <div className="font-semibold">Couldn’t load groups</div>
+          <div className="text-sm opacity-80">{error}</div>
+        </div>
+      </div>
+    );
   }
 
-  /** clear to "All" */
-  function clearAll() {
-    setSelected(new Set());
-  }
-
-  function applyAndClose() {
-    setOpen(false);
-  }
-
-  function prettySport(id: string) {
-    const s = sports.find((x) => x.id === id);
-    return s ? `${s.icon || "•"} ${s.name}` : id;
-  }
-
-  const selectedCount = selected.size;
-  const isAll = selectedCount === 0;
+  const privacyLabel =
+    PRIVACY_ITEMS.find(p => p.id === filters.privacy)?.label ?? "All";
+  const activityLabel =
+    filters.sports.length ? `${filters.sports.length} selected` : "All sports";
 
   return (
-    <div className="mx-auto max-w-5xl">
-      {/* Page header */}
-      <div className="mb-2 flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold">Discover</h1>
-        <div className="text-xs text-gray-500">{authed ? "Signed in" : "Guest"}</div>
-      </div>
-
-      {/* Mobile: filter dropdown */}
-      <div className="sm:hidden relative mb-3">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-haspopup="true"
-          aria-expanded={open ? "true" : "false"}
-          className={[
-            "w-full inline-flex items-center justify-between rounded-full border px-4 py-2 text-sm",
-            "bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60",
-            "border-gray-200 text-gray-800 shadow-sm active:scale-[0.99]",
-          ].join(" ")}
-        >
-          <span className="flex items-center gap-2">
-            <span className="text-base">🏷️</span>
-            <span>Filter sports</span>
-          </span>
-          <span className="text-xs text-gray-500">
-            {isAll ? "All" : `${selectedCount} selected`}
-          </span>
-        </button>
-
-        {open && (
-          <div
-            ref={panelRef}
-            className="absolute inset-x-0 z-20 mt-2 rounded-2xl border bg-white/95 p-3 shadow-xl backdrop-blur"
+    <div className="p-4 space-y-3">
+      {/* Filter card */}
+      <section className="rounded-2xl border bg-white/60 p-3 space-y-2">
+        {/* Row 1 — 3 compact controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* All (resets privacy + sports) */}
+          <Button
+            size="sm"
+            variant={filters.privacy === "all" && filters.sports.length === 0 ? "solid" : "outline"}
+            className="rounded-full"
+            onClick={clearAll}
           >
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm font-medium">Select sports</div>
-              <button
-                type="button"
-                onClick={clearAll}
-                className="rounded-full border px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
-              >
-                Clear
-              </button>
-            </div>
+            ✨ All
+          </Button>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Pill label="All" icon="✨" active={isAll} onClick={clearAll} />
-              {!loading &&
-                sports.map((s) => (
-                  <Pill
-                    key={s.id}
-                    label={s.name}
-                    icon={s.icon || "•"}
-                    active={selected.has(s.id)}
-                    onClick={() => toggleSport(s.id)}
-                  />
-                ))}
-            </div>
+          {/* Privacy popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className="rounded-full">
+                <span className="mr-1">🌐</span> {privacyLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-2">
+              <div className="flex flex-wrap gap-2">
+                {PRIVACY_ITEMS.map((p) => {
+                  const active = filters.privacy === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setPrivacy(p.id as Filters["privacy"])}
+                      className={`rounded-full px-3 py-1 text-sm border ${
+                        active ? "bg-emerald-600 text-white border-emerald-600" : "bg-white border-gray-300 text-gray-700"
+                      }`}
+                    >
+                      <span className="mr-1">{p.icon}</span>{p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
 
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-full border px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={applyAndClose}
-                className="rounded-full bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+          {/* Activity popover (sports multi-select) */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className="rounded-full">
+                {activityLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[20rem] p-2">
+              <div className="flex flex-wrap gap-2 max-h-64 overflow-auto no-scrollbar">
+                {sports.map((s) => {
+                  const active = filters.sports.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleSport(s.id)}
+                      className={`rounded-full px-3 py-1 text-sm border ${
+                        active ? "bg-emerald-600 text-white border-emerald-600" : "bg-white border-gray-300 text-gray-700"
+                      }`}
+                    >
+                      {s.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
 
-      {/* Desktop: chip row */}
-      <section aria-label="Filter by sport" className="mb-4 hidden sm:block">
-        <div className="-mx-3 px-3 sm:mx-0 sm:px-0">
-          <div className="flex flex-wrap gap-2">
-            <Chip label="All" icon="✨" active={isAll} onClick={clearAll} />
-            {!loading &&
-              sports.map((s) => (
-                <Chip
-                  key={s.id}
-                  label={s.name}
-                  icon={s.icon || "•"}
-                  active={selected.has(s.id)}
-                  onClick={() => toggleSport(s.id)}
-                />
-              ))}
-          </div>
+        {/* Row 2 — city input + Clear on the right */}
+        <div className="flex items-center gap-2">
+          <input
+            value={filters.cityLike}
+            onChange={(e) => setFilters(f => ({ ...f, cityLike: e.target.value }))}
+            placeholder="City (type to filter)…"
+            className="h-10 flex-1 rounded-2xl border border-gray-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          />
+          {(filters.cityLike || filters.privacy !== "all" || filters.sports.length) && (
+            <Button size="sm" onClick={clearAll}>Clear</Button>
+          )}
         </div>
       </section>
 
-      {/* Cards grid */}
-      <section aria-label="Activities" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {filtered.map((card) => (
-          <article
-            key={card.id}
-            className="group rounded-2xl border bg-white/70 p-4 shadow-sm backdrop-blur-sm transition hover:shadow-md"
-          >
-            <div className="mb-1 text-sm text-gray-500">{prettySport(card.sport_id)}</div>
-            <h3 className="text-base font-semibold">{card.title}</h3>
-            <p className="mt-1 text-sm text-gray-600">
-              {authed ? card.teaser : "Sign in to see details…"}
-            </p>
-            <div className="mt-2 text-xs text-gray-500">{card.when}</div>
-          </article>
-        ))}
+      {/* Count + spinner */}
+      <div className="text-sm text-gray-500 flex items-center gap-2">
+        {countLabel}
+        {fetching && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />}
+      </div>
 
-        {!filtered.length && (
-          <div className="col-span-full rounded-xl border border-dashed p-8 text-center text-sm text-gray-500">
-            No items for this sport yet. Try “All”.
-          </div>
-        )}
-      </section>
+      {/* Cards */}
+      {groups.length === 0 ? (
+        <div className="text-sm text-gray-600">No groups match your filters.</div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {groups.map((g) => (
+            <Link
+              key={g.id}
+              to={`/groups/${g.id}`}
+              className="block rounded-2xl border p-4 shadow-sm bg-white/60 backdrop-blur hover:shadow transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-semibold leading-snug max-w-[88%]">
+                  {user ? (
+                    <ClampText title={g.name} clickToExpand>{g.name}</ClampText>
+                  ) : (
+                    <ClampText title="Join to see the title" clickToExpand>Join to see the title</ClampText>
+                  )}
+                </h3>
+                <PrivacyBadge privacy={g.privacy} />
+              </div>
+              <div className="mt-2 text-sm text-gray-600 grid grid-cols-2">
+                <div>Sport: {g.sport_id}</div>
+                <div className="text-right">City: {g.city || "—"}</div>
+              </div>
+              <div className="mt-2 text-xs text-gray-600">
+                Join: <span className="uppercase">{g.join_mode}</span> · Status:{" "}
+                <span className="uppercase">{g.status}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
-  );
-}
-
-/** Chip
- * v0.1.5 — desktop chip toggle (multi-select). Active = blue ring.
- */
-function Chip(props: { label: string; icon?: string; active?: boolean; onClick?: () => void }) {
-  const { label, icon, active, onClick } = props;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active ? "true" : "false"}
-      className={[
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm",
-        "backdrop-blur supports-[backdrop-filter]:bg-white/60",
-        active
-          ? "border-blue-500 text-blue-700 ring-2 ring-blue-200"
-          : "border-gray-200 text-gray-800 hover:border-gray-300 active:scale-[0.98]",
-      ].join(" ")}
-    >
-      <span className="text-base leading-none">{icon || "•"}</span>
-      <span className="leading-none">{label}</span>
-    </button>
-  );
-}
-
-/** Pill
- * v0.1.5 — mobile dropdown pill; same visual language as Chip.
- */
-function Pill(props: { label: string; icon?: string; active?: boolean; onClick?: () => void }) {
-  const { label, icon, active, onClick } = props;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active ? "true" : "false"}
-      className={[
-        "inline-flex w-full items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-sm",
-        "bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60",
-        active
-          ? "border-blue-500 text-blue-700 ring-2 ring-blue-200"
-          : "border-gray-200 text-gray-800 hover:border-gray-300 active:scale-[0.98]",
-      ].join(" ")}
-    >
-      <span className="text-base leading-none">{icon || "•"}</span>
-      <span className="leading-none">{label}</span>
-    </button>
   );
 }
