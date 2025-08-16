@@ -1,14 +1,10 @@
 /**
  * Pulse Web — App.tsx
- * Version: v0.1.7
- * Purpose: App shell + routes. Uses global glass bottom dock; Friends under Me.
- * Changes (v0.1.7):
- *  - Added /groups/:id route to GroupDetail page.
- *  - Header uses TopBarRight (theme + language) for consistency.
+ * Version: v0.3.1
+ * Purpose: App shell + routes (HashRouter assumed). Adds RequireAdmin for admin routes and WelcomeUser in header.
  */
 
 import React from "react";
-import Protected from "@/components/Protected";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 // Pages
@@ -28,10 +24,14 @@ import Settings from "@/pages/Settings";
 import Wallet from "@/pages/Wallet";
 import Favorites from "@/pages/Favorites";
 import GroupDetail from "@/pages/GroupDetail";
+import AdminFacilities from "@/pages/AdminFacilities";
 
-// Global glass dock + top-right controls
+// Guards & UI
+import Protected from "@/components/Protected"; // your existing guard
 import GlassDockBottom from "@/components/GlassDockBottom";
 import { TopBarRight } from "@/components/TopBarRight";
+import RequireAdmin from "@/components/RequireAdmin";   // NEW
+import WelcomeUser from "@/components/WelcomeUser";     // NEW
 
 export default function App() {
   return (
@@ -39,7 +39,11 @@ export default function App() {
       {/* Header (clean) */}
       <header className="sticky top-0 z-20 w-full border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-3 py-2">
-          <div className="text-sm font-semibold">Pulse</div>
+          <div className="flex items-center">
+            <div className="text-sm font-semibold">Pulse</div>
+            {/* Welcome, username (only when authed) */}
+            <WelcomeUser />
+          </div>
           <TopBarRight />
         </div>
       </header>
@@ -55,29 +59,33 @@ export default function App() {
           <Route path="/book" element={<Protected><Book /></Protected>} />
           <Route path="/chat" element={<Protected><Chat /></Protected>} />
           <Route path="/me" element={<Protected><Me /></Protected>} />
+          <Route
+            path="/admin/facilities"
+            element={
+              <RequireAdmin>
+                <AdminFacilities />
+              </RequireAdmin>
+            }
+          />
 
-          {/* Group detail */}
+          {/* Secondary / misc pages (keep as you already use them) */}
+          <Route path="/style" element={<StyleGuide />} />
+          <Route path="/ui/glass" element={<UiGlass />} />
+          <Route path="/ui/glass/top" element={<UiGlassTop />} />
+          <Route path="/ui/glass/bottom" element={<UiGlassBottom />} />
+          <Route path="/friends" element={<Friends />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/wallet" element={<Wallet />} />
+          <Route path="/favorites" element={<Favorites />} />
           <Route path="/groups/:id" element={<GroupDetail />} />
-
-          {/* Subpages linked from Me menu */}
-          <Route path="/friends" element={<Protected><Friends /></Protected>} />
-          <Route path="/settings" element={<Protected><Settings /></Protected>} />
-          <Route path="/wallet" element={<Protected><Wallet /></Protected>} />
-          <Route path="/favorites" element={<Protected><Favorites /></Protected>} />
-
-          {/* Auth + UI previews */}
           <Route path="/login" element={<Login />} />
-          <Route path="/ui" element={<StyleGuide />} />
-          <Route path="/ui-glass" element={<UiGlass />} />
-          <Route path="/ui-glass-top" element={<UiGlassTop />} />
-          <Route path="/ui-glass-bottom" element={<UiGlassBottom />} />
 
-          {/* 404 → Discover */}
+          {/* Catch-all LAST: send unknown routes to Discover */}
           <Route path="*" element={<Navigate to="/discover" replace />} />
         </Routes>
       </main>
 
-      {/* Global glass bottom dock */}
+      {/* Bottom glass dock (mobile) */}
       <GlassDockBottom />
     </div>
   );

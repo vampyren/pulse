@@ -19,3 +19,8 @@ web/node_modules/
 web/node_modules/.vite/
 **/node_modules/.vite/
 **/node_modules/.vite/deps_temp_*/
+
+# Build & temp
+/web/dist/
+releases/
+*.bak
