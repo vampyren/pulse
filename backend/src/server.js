@@ -1,17 +1,13 @@
 /* Pulse Backend — server.js
- * Version: v0.2.0
+ * Version: v0.2.3
  * Purpose: Boot the API (app.js handles all route mounting)
  */
 
 import "dotenv/config";
-import { config } from "./config.js";
-import { app } from "./app.js"; // named export from app.js
+import app from "./app.js";          // default export plus named available
+import "./db/index.js";              // open DB and PRAGMAs
 
-// DB init
-import "./db/index.js";
-
-// Start server
-const PORT = Number(process.env.PORT || config.PORT || 4010);
+const PORT = Number(process.env.PORT || 4010);
 app.listen(PORT, () => {
-  console.log(`[Pulse] API v0.2.0 listening on :${PORT}`);
+  console.log(`[Pulse] API v0.2.3 listening on :${PORT}`);
 });

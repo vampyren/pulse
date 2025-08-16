@@ -1,15 +1,13 @@
 /**
  * Pulse Backend — routes/activities.js
- * Version: v0.1.0
+ * Version: v0.1.2
  * Purpose: Read-only Activities listing (optionally scoped by group)
  */
 
-import express from "express";
-import Database from "better-sqlite3";
+import { Router } from "express";
+import { db } from "../db/index.js";
 
-const router = express.Router();
-const DB_PATH = process.env.PULSE_DB_PATH || `${process.env.HOME}/App/pulse/data/pulse.db`;
-const db = new Database(DB_PATH, { readonly: true });
+const router = Router();
 
 // GET /api/v2/activities?group=<group_id>
 router.get("/", (req, res) => {

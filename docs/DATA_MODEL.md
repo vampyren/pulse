@@ -625,3 +625,21 @@ Examples:
 **Rule:** If both `city_in` and `city_like` are present, `city_in` takes precedence.  
 **Schema:** No database changes required.
 
+## API Note — Groups Filtering (update, 2025-08-14-b)
+
+**Endpoint:** `GET /api/v2/groups`
+
+**Added filter:** `city_contains` — case-insensitive substring match on the city (SQL `LIKE '%term%'`).  
+Examples:
+```
+/api/v2/groups?city_contains=holm
+/api/v2/groups?city_contains=mal&sport=padel,tennis&privacy=public
+```
+**Existing filters (unchanged):**
+- `privacy` — `public|friends|invite|private`
+- `sport` — comma list
+- `city_like` — prefix match (case-insensitive)
+- `city_in` — comma-separated exact list (case-insensitive)
+
+**Precedence rule (highest first):** `city_in` > `city_contains` > `city_like`.  
+**Schema:** No database changes required.

@@ -1,17 +1,17 @@
-/**
+/** 
  * Pulse Backend — routes/groups.js
- * Version: v0.2.2
- * Purpose: Read-only Groups endpoints for Discover
- *  - Supports: privacy, sport (comma list), city_like (prefix), city_in (comma list)
+ * Version: v0.2.4
+ * Purpose: Read-only Groups endpoints for Discover.
+ * Supports filters: privacy, sport (comma list), city, city_like (prefix),
+ * city_contains (substring), city_in (comma list; precedence over others).
  */
 
-import express from "express";
-import Database from "better-sqlite3";
+import { Router } from "express";
+import { db } from "../db/index.js";
 
-const router = express.Router();
-const DB_PATH = process.env.PULSE_DB_PATH || `${process.env.HOME}/App/pulse/data/pulse.db`;
-const db = new Database(DB_PATH, { readonly: true });
+const router = Router();
 
+// Map DB row -> API shape
 function mapGroup(row) {
   return {
     id: row.id,
@@ -23,14 +23,24 @@ function mapGroup(row) {
     owner_id: row.owner_id,
     status: row.status,
     created_at: row.created_at,
-    updated_at: row.updated_at,
+    updated_at: row.updated_at ?? null,
   };
 }
 
-// GET /api/v2/groups
-// Query: privacy, sport=padel,tennis, city_like=Mal, city_in=Malmö,Stockholm
+/**
+ * GET /api/v2/groups
+ * Query: privacy=public|friends|invite|private
+ *        sport=padel,tennis
+ *        city=Stockholm            (exact)
+ *        city_like=Mal             (prefix, case-insensitive)
+ *        city_contains=holm        (substring, case-insensitive)
+ *        city_in=Malmö,Stockholm   (IN, case-insensitive; takes precedence)
+ *
+ * Precedence: city_in > city_contains > city_like. If `city` is present,
+ * it's combined with other filters unless city_in is used.
+ */
 router.get("/", (req, res) => {
-  const { privacy, sport, city, city_like, city_in } = req.query;
+  const { privacy, sport, city, city_like, city_contains, city_in } = req.query;
   const where = [];
   const params = {};
 
@@ -40,7 +50,7 @@ router.get("/", (req, res) => {
     params.privacy = String(privacy);
   }
 
-  // sports (IN)
+  // sport IN
   if (sport) {
     const list = String(sport).split(",").map(s => s.trim()).filter(Boolean);
     if (list.length) {
@@ -55,13 +65,7 @@ router.get("/", (req, res) => {
     params.city = String(city);
   }
 
-  // city_like (prefix)
-  if (city_like) {
-    where.push("LOWER(city) LIKE LOWER(@city_like)");
-    params.city_like = `${String(city_like)}%`;
-  }
-
-  // city_in (IN, case-insensitive match by normalizing)
+  // city filters with precedence
   if (city_in) {
     const list = String(city_in).split(",").map(c => c.trim()).filter(Boolean);
     if (list.length) {
@@ -70,6 +74,12 @@ router.get("/", (req, res) => {
       );
       list.forEach((val, i) => (params[`c${i}`] = val));
     }
+  } else if (city_contains) {
+    where.push("LOWER(city) LIKE LOWER(@city_contains)");
+    params.city_contains = `%${String(city_contains)}%`;
+  } else if (city_like) {
+    where.push("LOWER(city) LIKE LOWER(@city_like)");
+    params.city_like = `${String(city_like)}%`;
   }
 
   const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -86,7 +96,10 @@ router.get("/", (req, res) => {
   res.json({ ok: true, data: rows.map(mapGroup), meta: { count: rows.length } });
 });
 
-// GET /api/v2/groups/:id
+/**
+ * GET /api/v2/groups/:id
+ * Returns: { group, members, activities }
+ */
 router.get("/:id", (req, res) => {
   const { id } = req.params;
   const group = db.prepare(
@@ -100,7 +113,7 @@ router.get("/:id", (req, res) => {
       FROM group_members gm
       JOIN users u ON u.id = gm.user_id
       WHERE gm.group_id = ?
-      ORDER BY gm.role = 'owner' DESC, u.username ASC
+      ORDER BY gm.role DESC, gm.joined_at ASC
       LIMIT 200
     `
   ).all(id);

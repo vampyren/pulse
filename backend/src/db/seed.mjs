@@ -812,3 +812,132 @@ function main() {
 }
 
 main();
+
+
+
+// [BEGIN BLOCK] ensureFacilitiesSchema v0.6.1 (additive)
+        function ensureFacilitiesSchema(db) {
+          db.exec(`
+            CREATE TABLE IF NOT EXISTS facilities (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              type TEXT,
+              city TEXT,
+              address TEXT,
+              zip TEXT,
+              lat REAL,
+              lng REAL,
+              sports_json TEXT DEFAULT '[]',
+              indoor TEXT CHECK (indoor IN ('indoor','outdoor','mixed')),
+              phone TEXT,
+              email TEXT,
+              website TEXT,
+              opening_hours_json TEXT DEFAULT '{}',
+              amenities_json TEXT DEFAULT '{}',
+              status TEXT DEFAULT 'active',
+              notes TEXT,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_fac_city ON facilities(city);
+            CREATE INDEX IF NOT EXISTS idx_fac_status ON facilities(status);
+          `);
+        }
+        // [END BLOCK] ensureFacilitiesSchema v0.6.1
+
+
+
+// [BEGIN BLOCK] seedFacilities v0.6.1 (additive)
+        function seedFacilities(db) {
+          const upsert = db.prepare(`INSERT INTO facilities
+            (id,name,type,city,address,zip,lat,lng,sports_json,indoor,phone,email,website,opening_hours_json,amenities_json,status,notes,created_at,updated_at)
+            VALUES (@id,@name,@type,@city,@address,@zip,@lat,@lng,@sports_json,@indoor,@phone,@email,@website,@opening_hours_json,@amenities_json,@status,@notes,datetime('now'),datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+              name=excluded.name, type=excluded.type, city=excluded.city, address=excluded.address, zip=excluded.zip,
+              lat=excluded.lat, lng=excluded.lng, sports_json=excluded.sports_json, indoor=excluded.indoor,
+              phone=excluded.phone, email=excluded.email, website=excluded.website,
+              opening_hours_json=excluded.opening_hours_json, amenities_json=excluded.amenities_json,
+              status=excluded.status, notes=excluded.notes, updated_at=datetime('now')`);
+
+          const examples = [
+            {
+              id: "malmo-racket-center",
+              name: "Malmö Racket Center",
+              type: "racket",
+              city: "Malmö",
+              address: "Bollspelsvägen 1",
+              zip: "216 25",
+              lat: 55.5699, lng: 12.9975,
+              sports_json: JSON.stringify(["padel","tennis"]),
+              indoor: "indoor",
+              phone: "+46 40 123 456",
+              email: "info@mrc.se",
+              website: "https://example-mrc.se",
+              opening_hours_json: JSON.stringify({
+                Monday:[{from:"07:00",to:"22:00"}],
+                Tuesday:[{from:"07:00",to:"22:00"}],
+                Wednesday:[{from:"07:00",to:"22:00"}],
+                Thursday:[{from:"07:00",to:"22:00"}],
+                Friday:[{from:"07:00",to:"22:00"}],
+                Saturday:[{from:"08:00",to:"20:00"}],
+                Sunday:[{from:"08:00",to:"20:00"}]
+              }),
+              amenities_json: JSON.stringify({ locker_room:true, parking:true }),
+              status: "active", notes: null
+            },
+            {
+              id: "backagardens-sph-sporthall",
+              name: "Bäckagårdens SPH / Sporthall",
+              type: "sporthall",
+              city: "Malmö",
+              address: "Klagervägen 342",
+              zip: "212 36",
+              lat: 55.60, lng: 13.02,
+              sports_json: JSON.stringify(["innebandy","volleyball","basket","badminton"]),
+              indoor: "indoor",
+              phone: "+46 40 26 18",
+              email: "booking@malmo.se",
+              website: "https://malmo.se/...",
+              opening_hours_json: JSON.stringify({
+                Monday:[{from:"17:00",to:"22:00"}],
+                Tuesday:[{from:"17:00",to:"22:00"}],
+                Wednesday:[{from:"17:00",to:"22:00"}],
+                Thursday:[{from:"17:00",to:"22:00"}],
+                Friday:[{from:"17:00",to:"22:00"}],
+                Saturday:[{from:"09:00",to:"18:00"}],
+                Sunday:[{from:"09:00",to:"18:00"}]
+              }),
+              amenities_json: JSON.stringify({ accessible_entrance:true, spectator_capacity:0, hall_capacity:150, floor:"plastmatta" }),
+              status: "active", notes: null
+            },
+            {
+              id: "stockholm-padel-center",
+              name: "Stockholm Padel Center",
+              type: "padel",
+              city: "Stockholm",
+              address: "Fabriksvägen 10, Nacka",
+              zip: "131 53",
+              lat: 59.3100, lng: 18.1640,
+              sports_json: JSON.stringify(["padel"]),
+              indoor: "indoor",
+              phone: "+46 8 987 654",
+              email: "info@spc.se",
+              website: "https://example-spc.se",
+              opening_hours_json: JSON.stringify({
+                Monday:[{from:"07:00",to:"23:00"}],
+                Tuesday:[{from:"07:00",to:"23:00"}],
+                Wednesday:[{from:"07:00",to:"23:00"}],
+                Thursday:[{from:"07:00",to:"23:00"}],
+                Friday:[{from:"07:00",to:"23:00"}],
+                Saturday:[{from:"08:00",to:"21:00"}],
+                Sunday:[{from:"08:00",to:"21:00"}]
+              }),
+              amenities_json: JSON.stringify({ pro_shop:true }),
+              status: "active", notes: null
+            }
+          ];
+
+          const tx = db.transaction((arr)=>{ for (const f of arr) upsert.run(f); });
+          tx(examples);
+        }
+        // [END BLOCK] seedFacilities v0.6.1

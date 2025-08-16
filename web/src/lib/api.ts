@@ -71,6 +71,16 @@ export function clearToken() {
   localStorage.removeItem(tokenKey);
 }
 
+// Tiny helper so we can fire an event right after auth state changes
+function notifyAuthChange(): void {
+  // Safe in browser; ignored server-side
+  try {
+    window.dispatchEvent(new Event("authchange"));
+  } catch {
+    /* no-op */
+  }
+}
+
 // Core fetch wrapper
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
@@ -91,7 +101,14 @@ export async function login(username: string, password: string) {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
+
+  // Set the token as before
   setToken(r.data.token);
+
+  // 🔔 Tell the app *immediately* that auth state changed
+  notifyAuthChange();
+
+  // Return the logged-in user (unchanged)
   return r.data.user;
 }
 
@@ -100,8 +117,13 @@ export async function me() {
   return r.data.user;
 }
 
+
 export async function logout() {
+  // Clear the token as before
   clearToken();
+
+  // 🔔 Tell the app *immediately* that auth state changed
+  notifyAuthChange();
 }
 
 // Sports (kept)

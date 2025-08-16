@@ -24,3 +24,10 @@ web/node_modules/.vite/
 /web/dist/
 releases/
 *.bak
+
+# Build & temp
+/web/dist/
+releases/
+*.bak
+/data/*.db-wal
+/data/*.db-shm
