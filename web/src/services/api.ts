@@ -1,7 +1,7 @@
 /**
- * Version: v1.0.0 | Date: 2025-08-20
+ * Version: v1.1.0 | Date: 2025-08-20
  * Purpose: API service layer for Pulse app - connects frontend to backend
- * Features: Authentication, groups, sports, users, ratings, flags
+ * Features: Authentication, groups, sports, users, ratings, flags, create group
  * Author: Pulse Admin System
  */
 
@@ -93,6 +93,17 @@ export interface CreateSportRequest {
   name: string;
   icon: string;
   slug?: string;
+}
+
+export interface CreateGroupRequest {
+  sport_id: string;
+  date: string;
+  time: string;
+  skill_level: string;
+  location: string;
+  privacy: string;
+  description?: string;
+  max_members: number;
 }
 
 export interface RateUserRequest {
@@ -250,6 +261,13 @@ class ApiClient {
     });
   }
 
+  async createGroup(groupData: CreateGroupRequest): Promise<ApiResponse<Group>> {
+    return this.request('/groups', {
+      method: 'POST',
+      body: JSON.stringify(groupData),
+    });
+  }
+
   // User interaction endpoints
   async rateUser(userId: string, ratingData: RateUserRequest): Promise<ApiResponse<{ message: string }>> {
     return this.request(`/users/${userId}/rate`, {
@@ -328,6 +346,7 @@ export const api = {
     apiClient.getGroups(filters),
   getGroup: (id: string) => apiClient.getGroup(id),
   joinGroup: (id: string) => apiClient.joinGroup(id),
+  createGroup: (groupData: CreateGroupRequest) => apiClient.createGroup(groupData),
   
   // Users
   rateUser: (userId: string, rating: number, groupId: string) => 

@@ -1,5 +1,5 @@
 /**
- * Version: v2.1.0 | Date: 2025-08-20
+ * Version: v2.2.0 | Date: 2025-08-20
  * Purpose: Express server with SQLite database integration (ES Module)
  * Features: Real database queries, authentication, CRUD operations
  * Author: Pulse Admin System
@@ -195,6 +195,101 @@ app.post('/api/v2/auth/register', async (req, res) => {
         
     } catch (error) {
         console.error('Registration error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Create new group/activity endpoint
+app.post('/api/v2/groups', authenticateToken, async (req, res) => {
+    try {
+        const { 
+            sport_id, 
+            date, 
+            time, 
+            skill_level, 
+            location, 
+            privacy, 
+            description, 
+            max_members 
+        } = req.body;
+        
+        const organizerId = req.user.id;
+        
+        // Validate required fields
+        if (!sport_id || !date || !time || !skill_level || !location) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        // Get sport info for title generation
+        const sport = await dbGet('SELECT name FROM sports WHERE id = ?', [sport_id]);
+        if (!sport) {
+            return res.status(400).json({ error: 'Invalid sport selected' });
+        }
+        
+        // Skill level display names
+        const skillLevelNames = {
+            'newbie': 'Newbie Friendly',
+            'weekend': 'Weekend Warrior', 
+            'serious': 'Serious Player',
+            'elite': 'Elite Level'
+        };
+        
+        // Auto-generate title from sport + skill level
+        const title = `${sport.name} - ${skillLevelNames[skill_level] || skill_level}`;
+        
+        // Combine date and time
+        const dateTime = `${date} ${time}`;
+        
+        const groupId = Math.random().toString(36).substr(2, 9);
+        
+        await dbRun(`
+            INSERT INTO groups (
+                id, title, sport_id, organizer_id, city, privacy, 
+                max_members, details, date_time, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            groupId, 
+            title, 
+            sport_id, 
+            organizerId, 
+            location, // Using location as city for now
+            privacy, 
+            max_members, 
+            description || '', 
+            dateTime,
+            'upcoming'
+        ]);
+        
+        // Add organizer as member with organizer role
+        const membershipId = Math.random().toString(36).substr(2, 9);
+        await dbRun(
+            'INSERT INTO group_members (id, group_id, user_id, role) VALUES (?, ?, ?, ?)',
+            [membershipId, groupId, organizerId, 'organizer']
+        );
+        
+        // Update group count for the sport
+        await dbRun(
+            'UPDATE sports SET group_count = group_count + 1 WHERE id = ?',
+            [sport_id]
+        );
+        
+        // Fetch the created group with all details
+        const newGroup = await dbGet(`
+            SELECT 
+                g.*,
+                s.name as sport_name,
+                s.icon as sport_icon,
+                u.name as organizer_name
+            FROM groups g
+            LEFT JOIN sports s ON g.sport_id = s.id
+            LEFT JOIN users u ON g.organizer_id = u.id
+            WHERE g.id = ?
+        `, [groupId]);
+        
+        res.status(201).json(newGroup);
+        
+    } catch (error) {
+        console.error('Error creating group:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

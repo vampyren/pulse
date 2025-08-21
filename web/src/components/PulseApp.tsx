@@ -1,15 +1,19 @@
 /** 
- * Version: v2.3.0 | Date: 2025-08-20
- * Purpose: Main PulseApp with clean architecture and page-based navigation
- * Features: Page routing, API integration, admin system, improved structure
+ * Version: v2.4.0 | Date: 2025-08-20
+ * Purpose: Main PulseApp with clean architecture and page-based navigation including create activity
+ * Features: Page routing, API integration, admin system, improved structure, create activity
  * Author: Pulse Admin System
  */
 import React, { useState, useEffect } from 'react';
 import { api, type Sport, type Group, type User, type FlagReport } from '../services/api';
 import DiscoverPage from '../pages/DiscoverPage';
+import CreateActivityPage from '../pages/CreateActivityPage';
 import SportsManagement from './SportsManagement';
 import UserManagement from './UserManagement';
 import FlagManagement from './FlagManagement';
+import { ToastProvider } from '../hooks/useToast';
+import LoginPage from './LoginPage';
+import MePage from '../pages/MePage';
 
 // Glass design tokens
 const glassStyles = {
@@ -30,9 +34,13 @@ export default function PulseApp() {
   const [isAdmin, setIsAdmin] = useState(() => 
     localStorage.getItem('pulse_is_admin') === 'true'
   );
-  const [currentView, setCurrentView] = useState<'discover' | 'groups' | 'chat' | 'book' | 'me' | 'admin-sports' | 'admin-users' | 'admin-flags' | 'admin-dashboard' | 'group-detail'>(() => 
+  const [currentView, setCurrentView] = useState<'discover' | 'groups' | 'chat' | 'book' | 'me' | 'admin-sports' | 'admin-users' | 'admin-flags' | 'admin-dashboard' | 'group-detail' | 'create-activity'>(() => 
     (localStorage.getItem('pulse_current_view') as any) || 'discover'
   );
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem('pulse_auth_token');
+  });
 
   // App state
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
@@ -60,7 +68,15 @@ export default function PulseApp() {
   // Navigation functions
   const toggleLanguage = () => setLanguage(prev => prev === 'en' ? 'sv' : 'en');
 
-  const toggleAdminMode = () => {
+ const navigateToAdmin = () => {
+    console.log('navigateToAdmin called!');
+    setIsAdmin(true);
+    setCurrentView('admin-dashboard');
+    setActiveTab('admin-dashboard');
+    console.log('Admin state should now be:', true);
+  };
+
+ const toggleAdminMode = () => {
     if (isAdmin) {
       setIsAdmin(false);
       setCurrentView('discover');
@@ -68,13 +84,25 @@ export default function PulseApp() {
     } else {
       setIsAdmin(true);
       setCurrentView('admin-dashboard');
-      setActiveTab('admin');
+      setActiveTab('admin-dashboard');
     }
   };
 
   const navigateToPage = (page: string) => {
     setCurrentView(page as any);
     setActiveTab(page);
+  };
+
+  // Authentication functions
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    api.clearToken();
+    setIsAuthenticated(false);
+    setCurrentView('discover');
+    setActiveTab('discover');
   };
 
   // Admin navigation
@@ -99,6 +127,17 @@ export default function PulseApp() {
   const closeGroupDetail = () => {
     setSelectedGroup(null);
     setCurrentView('discover');
+  };
+
+  // Create activity navigation
+  const openCreateActivity = () => {
+    setCurrentView('create-activity');
+  };
+
+  const closeCreateActivity = () => {
+    setCurrentView('discover');
+    // Reload activities to show the new one
+    // The DiscoverPage will handle this automatically
   };
 
   // Rating and flagging functions
@@ -253,17 +292,14 @@ export default function PulseApp() {
     </div>
   );
 
-  const MePage = () => (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      <div className={`${glassStyles.panel} rounded-2xl p-8 text-center`}>
-        <div className="text-4xl mb-4">👤</div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">{getText('Profile', 'Profil')}</h2>
-        <p className="text-gray-600">{getText('Manage your profile and preferences', 'Hantera din profil och preferenser')}</p>
-        <div className="mt-4 text-sm text-gray-500">
-          {getText('Coming soon...', 'Kommer snart...')}
-        </div>
-      </div>
-    </div>
+  const MePageComponent = () => (
+    <MePage 
+      language={language} 
+      isAdmin={isAdmin} 
+      onLogout={handleLogout}
+      onToggleAdmin={toggleAdminMode}
+      onNavigateToAdmin={navigateToAdmin}
+    />
   );
 
   // Group Detail Component
@@ -290,7 +326,7 @@ export default function PulseApp() {
               <div className="flex items-center space-x-4 text-sm text-gray-600">
                 <span>📍 {selectedGroup.city}</span>
                 <span>📅 {dateTime.toLocaleDateString()}</span>
-                <span>🕐 {dateTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <span>🕒 {dateTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 <span>👤 {selectedGroup.memberCount}/{selectedGroup.max_members}</span>
               </div>
             </div>
@@ -384,7 +420,7 @@ export default function PulseApp() {
   
   switch (currentView) {
     case 'discover':
-      mainContent = <DiscoverPage language={language} onGroupSelect={openGroupDetail} />;
+      mainContent = <DiscoverPage language={language} onGroupSelect={openGroupDetail} onCreateActivity={openCreateActivity} />;
       break;
     case 'groups':
       mainContent = <GroupsPage />;
@@ -396,7 +432,7 @@ export default function PulseApp() {
       mainContent = <BookPage />;
       break;
     case 'me':
-      mainContent = <MePage />;
+      mainContent = <MePageComponent />;
       break;
     case 'admin-dashboard':
       mainContent = <AdminDashboard />;
@@ -413,259 +449,260 @@ export default function PulseApp() {
     case 'group-detail':
       mainContent = <GroupDetailPage />;
       break;
+    case 'create-activity':
+      mainContent = <CreateActivityPage language={language} onBack={closeCreateActivity} />;
+      break;
     default:
-      mainContent = <DiscoverPage language={language} onGroupSelect={openGroupDetail} />;
+      mainContent = <DiscoverPage language={language} onGroupSelect={openGroupDetail} onCreateActivity={openCreateActivity} />;
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* HEADER */}
-      <header className={`sticky top-0 z-40 ${glassStyles.header}`}>
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">
+return (
+    <ToastProvider>
+      {!isAuthenticated ? (
+        <LoginPage onLoginSuccess={handleLoginSuccess} language={language} />
+      ) : (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        {/* HEADER */}
+        <header className={`sticky top-0 z-40 ${glassStyles.header}`}>
+          <div className="max-w-6xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Pulse
               </h1>
               <p className="text-sm text-gray-600">
-                {isAdmin ? 'Admin Panel' : 'Find your next activity'}
+                {isAdmin ? getText('Admin Panel', 'Administratörspanel') : getText('Find your next activity', 'Hitta din nästa aktivitet')}
               </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button 
+              </div>
+              <div className="flex items-center space-x-3">
+               <button 
                 onClick={toggleLanguage}
                 className="flex items-center space-x-1 p-3 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 transition-all duration-200"
               >
                 <span className="text-lg">🌐</span>
                 <span className="text-lg">{language === 'en' ? '🇺🇸' : '🇸🇪'}</span>
               </button>
-              
-              <button 
-                onClick={toggleAdminMode}
-                className="p-3 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 transition-all duration-200"
-                title={isAdmin ? 'Switch to User view' : 'Switch to Admin view'}
-              >
-                <span className="text-lg">{isAdmin ? '🛡️' : '👤'}</span>
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* MAIN CONTENT */}
-      <main className="pb-20">
-        {mainContent}
-      </main>
+        {/* MAIN CONTENT */}
+        <main className="pb-20">
+          {mainContent}
+        </main>
 
-      {/* BOTTOM NAVIGATION */}
-      <nav className={`fixed bottom-0 left-0 right-0 ${glassStyles.menu} border-t border-gray-200`}>
-        <div className="flex items-center justify-around py-2">
-          {isAdmin ? (
-            <>
-              <button
-                onClick={() => navigateToPage('admin-dashboard')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'admin-dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">📊</span>
-                <span className="text-xs font-medium">Dashboard</span>
-              </button>
-              <button
-                onClick={() => navigateToPage('admin-sports')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'admin-sports' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">⚽</span>
-                <span className="text-xs font-medium">Sports</span>
-              </button>
-              <button
-                onClick={() => navigateToPage('admin-users')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'admin-users' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">👥</span>
-                <span className="text-xs font-medium">Users</span>
-              </button>
-              <button
-                onClick={() => navigateToPage('admin-flags')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'admin-flags' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">🚩</span>
-                <span className="text-xs font-medium">Flags</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button 
-                onClick={() => navigateToPage('discover')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'discover' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">🔍</span>
-                <span className="text-xs font-medium">Discover</span>
-              </button>
-              <button 
-                onClick={() => navigateToPage('groups')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'groups' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">👥</span>
-                <span className="text-xs font-medium">Groups</span>
-              </button>
-              <button 
-                onClick={() => navigateToPage('chat')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'chat' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">💬</span>
-                <span className="text-xs font-medium">Chat</span>
-              </button>
-              <button 
-                onClick={() => navigateToPage('book')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'book' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">📅</span>
-                <span className="text-xs font-medium">Book</span>
-              </button>
-              <button 
-                onClick={() => navigateToPage('me')}
-                className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
-                  activeTab === 'me' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-xl">👤</span>
-                <span className="text-xs font-medium">Me</span>
-              </button>
-            </>
-          )}
-        </div>
-      </nav>
-
-      {/* Rating Modal */}
-      {showRatingModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`${glassStyles.card} p-6 rounded-xl w-full max-w-sm`}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">{getText('Rate User', 'Betygsätt användare')}</h3>
-            <p className="text-gray-600 mb-4">{selectedUser.name}</p>
-            
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">{getText('Rating', 'Betyg')}</label>
-              <div className="flex items-center justify-center space-x-2">
-                {[1, 2, 3, 4, 5].map(star => (
-                  <button
-                    key={star}
-                    onClick={() => setUserRating(star)}
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(0)}
-                    className={`text-3xl transition-all duration-200 ${
-                      star <= (hoverRating || userRating) 
-                        ? 'text-yellow-400 scale-110' 
-                        : 'text-gray-300 hover:text-yellow-200'
-                    }`}
-                  >
-                    ⭐
-                  </button>
-                ))}
-              </div>
-              {userRating > 0 && (
-                <p className="text-center text-sm text-gray-600 mt-2">
-                  {userRating} star{userRating !== 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  setShowRatingModal(false);
-                  setUserRating(0);
-                  setSelectedUser(null);
-                }}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200"
-              >
-                {getText('Cancel', 'Avbryt')}
-              </button>
-              <button
-                onClick={handleRateUser}
-                disabled={userRating === 0}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-              >
-                {getText('Submit', 'Skicka')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Flag Modal */}
-      {showFlagModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`${glassStyles.card} p-6 rounded-xl w-full max-w-sm`}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">{getText('Flag User', 'Flagga användare')}</h3>
-            <p className="text-gray-600 mb-4">{selectedUser.name}</p>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">{getText('Reason', 'Anledning')}</label>
-              <select
-                value={flagReason}
-                onChange={(e) => setFlagReason(e.target.value)}
-                className="w-full p-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select a reason...</option>
-                {flagReasons.map(reason => (
-                  <option key={reason.value} value={reason.value}>
-                    {reason.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {flagReason === 'other' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">{getText('Details', 'Detaljer')}</label>
-                <textarea
-                  value={flagDetails}
-                  onChange={(e) => setFlagDetails(e.target.value)}
-                  placeholder="Please provide details..."
-                  className="w-full p-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  rows={3}
-                />
-              </div>
+        {/* BOTTOM NAVIGATION */}
+        <nav className={`fixed bottom-0 left-0 right-0 ${glassStyles.menu} border-t border-gray-200`}>
+          <div className="flex items-center justify-around py-2">
+            {isAdmin ? (
+              <>
+                <button
+                  onClick={() => navigateToPage('admin-dashboard')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'admin-dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">📊</span>
+                  <span className="text-xs font-medium">Dashboard</span>
+                </button>
+                <button
+                  onClick={() => navigateToPage('admin-sports')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'admin-sports' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">⚽</span>
+                  <span className="text-xs font-medium">Sports</span>
+                </button>
+                <button
+                  onClick={() => navigateToPage('admin-users')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'admin-users' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">👥</span>
+                  <span className="text-xs font-medium">Users</span>
+                </button>
+                <button
+                  onClick={() => navigateToPage('admin-flags')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'admin-flags' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">🚩</span>
+                  <span className="text-xs font-medium">Flags</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => navigateToPage('discover')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'discover' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">🔍</span>
+                  <span className="text-xs font-medium">Discover</span>
+                </button>
+                <button 
+                  onClick={() => navigateToPage('groups')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'groups' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">👥</span>
+                  <span className="text-xs font-medium">Groups</span>
+                </button>
+                <button 
+                  onClick={() => navigateToPage('chat')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'chat' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">💬</span>
+                  <span className="text-xs font-medium">Chat</span>
+                </button>
+                <button 
+                  onClick={() => navigateToPage('book')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'book' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">📅</span>
+                  <span className="text-xs font-medium">Book</span>
+                </button>
+                <button 
+                  onClick={() => navigateToPage('me')}
+                  className={`flex flex-col items-center space-y-1 p-3 rounded-2xl transition-all duration-200 ${
+                    activeTab === 'me' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl">👤</span>
+                  <span className="text-xs font-medium">Me</span>
+                </button>
+              </>
             )}
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  setShowFlagModal(false);
-                  setFlagReason('');
-                  setFlagDetails('');
-                  setSelectedUser(null);
-                }}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200"
-              >
-                {getText('Cancel', 'Avbryt')}
-              </button>
-              <button
-                onClick={handleFlagUser}
-                disabled={!flagReason || (flagReason === 'other' && !flagDetails.trim())}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-              >
-                {getText('Submit', 'Skicka')}
-              </button>
+          </div>
+        </nav>
+
+        {/* Rating Modal */}
+        {showRatingModal && selectedUser && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className={`${glassStyles.card} p-6 rounded-xl w-full max-w-sm`}>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{getText('Rate User', 'Betygsätt användare')}</h3>
+              <p className="text-gray-600 mb-4">{selectedUser.name}</p>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">{getText('Rating', 'Betyg')}</label>
+                <div className="flex items-center justify-center space-x-2">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      key={star}
+                      onClick={() => setUserRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className={`text-3xl transition-all duration-200 ${
+                        star <= (hoverRating || userRating) 
+                          ? 'text-yellow-400 scale-110' 
+                          : 'text-gray-300 hover:text-yellow-200'
+                      }`}
+                    >
+                      ⭐
+                    </button>
+                  ))}
+                </div>
+                {userRating > 0 && (
+                  <p className="text-center text-sm text-gray-600 mt-2">
+                    {userRating} star{userRating !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowRatingModal(false);
+                    setUserRating(0);
+                    setSelectedUser(null);
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+                >
+                  {getText('Cancel', 'Avbryt')}
+                </button>
+                <button
+                  onClick={handleRateUser}
+                  disabled={userRating === 0}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                  {getText('Submit', 'Skicka')}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* Flag Modal */}
+        {showFlagModal && selectedUser && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className={`${glassStyles.card} p-6 rounded-xl w-full max-w-sm`}>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{getText('Flag User', 'Flagga användare')}</h3>
+              <p className="text-gray-600 mb-4">{selectedUser.name}</p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">{getText('Reason', 'Anledning')}</label>
+                <select
+                  value={flagReason}
+                  onChange={(e) => setFlagReason(e.target.value)}
+                  className="w-full p-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select a reason...</option>
+                  {flagReasons.map(reason => (
+                    <option key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {flagReason === 'other' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{getText('Details', 'Detaljer')}</label>
+                  <textarea
+                    value={flagDetails}
+                    onChange={(e) => setFlagDetails(e.target.value)}
+                    placeholder="Please provide details..."
+                    className="w-full p-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    rows={3}
+                  />
+                </div>
+              )}
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowFlagModal(false);
+                    setFlagReason('');
+                    setFlagDetails('');
+                    setSelectedUser(null);
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+                >
+                  {getText('Cancel', 'Avbryt')}
+                </button>
+                <button
+                  onClick={handleFlagUser}
+                  disabled={!flagReason || (flagReason === 'other' && !flagDetails.trim())}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                  {getText('Submit', 'Skicka')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+    </ToastProvider>
   );
 }

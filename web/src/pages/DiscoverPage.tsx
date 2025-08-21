@@ -1,7 +1,7 @@
 /**
- * Version: v2.1.0 | Date: 2025-08-20
- * Purpose: Discover page - browse and filter activities with persistence
- * Features: Fixed multi-select, removed search, localStorage persistence, mobile layout
+ * Version: v2.2.0 | Date: 2025-08-20
+ * Purpose: Discover page - browse and filter activities with persistence and create button
+ * Features: Fixed multi-select, removed search, localStorage persistence, mobile layout, create activity
  * Author: Pulse Admin System
  */
 import React, { useState, useEffect } from 'react';
@@ -10,6 +10,7 @@ import { api, type Sport, type Group } from '../services/api';
 interface DiscoverPageProps {
   language: 'en' | 'sv';
   onGroupSelect: (group: Group) => void;
+  onCreateActivity: () => void;
 }
 
 // Glass design tokens
@@ -18,7 +19,7 @@ const glassStyles = {
   card: "bg-white/95 backdrop-blur-lg border border-gray-200/50 shadow-lg"
 };
 
-export default function DiscoverPage({ language, onGroupSelect }: DiscoverPageProps) {
+export default function DiscoverPage({ language, onGroupSelect, onCreateActivity }: DiscoverPageProps) {
   // API state
   const [sports, setSports] = useState<Sport[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -145,81 +146,93 @@ export default function DiscoverPage({ language, onGroupSelect }: DiscoverPagePr
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       {/* Enhanced Filter Section */}
       <div className={`${glassStyles.panel} rounded-2xl p-6`}>
-        {/* Clean Filter Buttons Row - Mobile optimized */}
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 mb-4">
-          {/* Clear All Button */}
-          <button
-            onClick={clearAllFilters}
-            className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
-              (selectedSports.length > 0 || selectedCities.length > 0 || selectedPrivacyTypes.length > 0)
-                ? 'text-red-600 border border-red-200 hover:bg-red-50'
-                : 'text-gray-600 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <span>🔄</span>
-              <span className="font-medium text-sm sm:text-base">{getText('Clear All', 'Rensa alla')}</span>
-            </div>
-          </button>
+        {/* Clean Filter Buttons Row with Create Button - Mobile optimized */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 flex-1">
+            {/* Clear All Button */}
+            <button
+              onClick={clearAllFilters}
+              className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
+                (selectedSports.length > 0 || selectedCities.length > 0 || selectedPrivacyTypes.length > 0)
+                  ? 'text-red-600 border border-red-200 hover:bg-red-50'
+                  : 'text-gray-600 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span>🔄</span>
+                <span className="font-medium text-sm sm:text-base">{getText('Clear All', 'Rensa alla')}</span>
+              </div>
+            </button>
 
-          {/* Privacy Filter Button */}
-          <button
-            onClick={() => setShowPrivacyModal(true)}
-            className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
-              selectedPrivacyTypes.length > 0 
-                ? 'text-purple-600 border border-purple-200 bg-purple-50'
-                : 'text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <span>👁️</span>
-              <span className="font-medium text-sm sm:text-base">
-                {selectedPrivacyTypes.length === 0 
-                  ? getText('All privacy', 'All integritet')
-                  : `${selectedPrivacyTypes.length} ${getText('privacy', 'integritet')}`
-                }
-              </span>
-            </div>
-          </button>
+            {/* Privacy Filter Button */}
+            <button
+              onClick={() => setShowPrivacyModal(true)}
+              className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
+                selectedPrivacyTypes.length > 0 
+                  ? 'text-purple-600 border border-purple-200 bg-purple-50'
+                  : 'text-gray-700 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span>👁️</span>
+                <span className="font-medium text-sm sm:text-base">
+                  {selectedPrivacyTypes.length === 0 
+                    ? getText('All privacy', 'All integritet')
+                    : `${selectedPrivacyTypes.length} ${getText('privacy', 'integritet')}`
+                  }
+                </span>
+              </div>
+            </button>
 
-          {/* Sports Filter Button */}
-          <button
-            onClick={() => setShowSportsModal(true)}
-            className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
-              selectedSports.length > 0 
-                ? 'text-emerald-600 border border-emerald-200 bg-emerald-50'
-                : 'text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <span>🏃</span>
-              <span className="font-medium text-sm sm:text-base">
-                {selectedSports.length === 0 
-                  ? getText('All activities', 'Alla aktiviteter')
-                  : `${selectedSports.length} ${getText('activities', 'aktiviteter')}`
-                }
-              </span>
-            </div>
-          </button>
+            {/* Sports Filter Button */}
+            <button
+              onClick={() => setShowSportsModal(true)}
+              className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
+                selectedSports.length > 0 
+                  ? 'text-emerald-600 border border-emerald-200 bg-emerald-50'
+                  : 'text-gray-700 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span>🏃</span>
+                <span className="font-medium text-sm sm:text-base">
+                  {selectedSports.length === 0 
+                    ? getText('All activities', 'Alla aktiviteter')
+                    : `${selectedSports.length} ${getText('activities', 'aktiviteter')}`
+                  }
+                </span>
+              </div>
+            </button>
 
-          {/* Cities Filter Button */}
+            {/* Cities Filter Button */}
+            <button
+              onClick={() => setShowCitiesModal(true)}
+              className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
+                selectedCities.length > 0 
+                  ? 'text-blue-600 border border-blue-200 bg-blue-50'
+                  : 'text-gray-700 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <span>📍</span>
+                <span className="font-medium text-sm sm:text-base">
+                  {selectedCities.length === 0 
+                    ? getText('All cities', 'Alla städer')
+                    : `${selectedCities.length} ${getText('cities', 'städer')}`
+                  }
+                </span>
+              </div>
+            </button>
+          </div>
+          
+          {/* Create Activity Button */}
           <button
-            onClick={() => setShowCitiesModal(true)}
-            className={`px-4 sm:px-6 py-3 rounded-lg transition-all duration-200 ${glassStyles.card} hover:shadow-md ${
-              selectedCities.length > 0 
-                ? 'text-blue-600 border border-blue-200 bg-blue-50'
-                : 'text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
+            onClick={onCreateActivity}
+            className="flex items-center justify-center w-12 h-12 ml-3 bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            aria-label={getText('Create new activity', 'Skapa ny aktivitet')}
+            title={getText('Create new activity', 'Skapa ny aktivitet')}
           >
-            <div className="flex items-center justify-center space-x-2">
-              <span>📍</span>
-              <span className="font-medium text-sm sm:text-base">
-                {selectedCities.length === 0 
-                  ? getText('All cities', 'Alla städer')
-                  : `${selectedCities.length} ${getText('cities', 'städer')}`
-                }
-              </span>
-            </div>
+            <span className="text-2xl font-bold">+</span>
           </button>
         </div>
         
@@ -304,7 +317,7 @@ export default function DiscoverPage({ language, onGroupSelect }: DiscoverPagePr
                     </div>
                   </div>
                   <div className="flex items-center space-x-1 text-sm text-gray-500">
-                    <span>🕐</span>
+                    <span>🕒</span>
                     <span>{dateTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                   </div>
                 </div>
@@ -473,7 +486,7 @@ export default function DiscoverPage({ language, onGroupSelect }: DiscoverPagePr
             {/* Pill-shaped options */}
             <div className="flex flex-wrap gap-2 mb-6">
               {[
-                { value: 'PUBLIC', label: getText('Public', 'Offentlig'), icon: '🌐' },
+                { value: 'PUBLIC', label: getText('Public', 'Offentlig'), icon: '🌍' },
                 { value: 'FRIENDS', label: getText('Friends', 'Vänner'), icon: '👥' },
                 { value: 'INVITE', label: getText('Invite Only', 'Endast inbjudan'), icon: '✉️' },
                 { value: 'PRIVATE', label: getText('Private', 'Privat'), icon: '🔒' }
